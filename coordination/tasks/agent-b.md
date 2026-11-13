@@ -14,4 +14,4 @@ Pfade: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/m/**`, weitere Seiten,
 | B10 | Lobby: Match, Serie, Demo, Verbindungsdaten | erledigt |
 | B11 | Adapter auf das Format von Agent-A, Test gegen lokalen Server | erledigt |
 | B12 | Serien-Seite gegen M3 testen | erledigt |
-| B13 | Test gegen Render, sobald der Stand auf `main` ist | offen |
+| B13 | Test gegen Render im Browser | erledigt, Aufwachen aus dem Schlafmodus misst Agent-A |
