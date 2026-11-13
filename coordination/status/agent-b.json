@@ -4,7 +4,7 @@
   "branch": "claude/funny-ramanujan-guacob",
   "partner-branch": "claude/peaceful-fermat-rusbce",
   "handshake": "verbunden",
-  "gelesen-bis": "a-0027",
-  "wartet-auf": "Pull Request von Stufe 1 nach main (loesen die Menschen aus) und Deploy auf Render. Danach Test der Ansicht gegen Render.",
-  "aktualisiert": "2026-11-13T11:28:34Z"
+  "gelesen-bis": "a-0028",
+  "wartet-auf": "Auftrag der Menschen fuer Stufe 2. Stufe 1 ist auf main, live und gegen Render geprueft (b-0022).",
+  "aktualisiert": "2026-11-13T11:30:54Z"
 }

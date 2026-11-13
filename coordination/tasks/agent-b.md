@@ -32,7 +32,7 @@ Das alte Spiel wird ersetzt. Gebaut wird je Stufe gegen die Typen und die Beispi
 | B25 | Lobby: Voreinstellungen „Turnier" und „Test", Optionen `planets`, `rounds`, `roundMs`, `timeoutMs` | erledigt |
 | B26 | `/vorschau` mit `src/lib/game` im Browser | erledigt |
 | B27 | Alte Replays: klare Meldung, Ablage im Browser räumen | erledigt |
-| B28 | Umstellung auf die neuen Typen, Test gegen lokalen Server und im Browser | erledigt, Test gegen Render steht aus |
+| B28 | Umstellung auf die neuen Typen, Test gegen lokalen Server und im Browser | erledigt, gegen Render geprüft |
 
 ### Später
 
