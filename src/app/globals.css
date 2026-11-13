@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+/*
+ * Design-Tokens: die einzige Quelle für Farben, Schrift und Abstände.
+ * Rohbau-Werte, bis die Design-Richtung feststeht. Danach werden nur diese
+ * Werte getauscht, die Komponenten bleiben unberührt.
+ */
+@theme {
+  /* 8px-Raster: p-1 = 8px, p-2 = 16px, p-3 = 24px, h-6 = 48px (Tippfläche). */
+  --spacing: 8px;
+
+  /* Farbrollen. Die Tailwind-Palette ist abgeschaltet, es gibt nur diese. */
+  --color-*: initial;
+  --color-ground: #f3f4f5;
+  --color-surface: #ffffff;
+  --color-ink: #111315;
+  --color-muted: #5c6166;
+  --color-line: #d5d8db;
+  --color-accent: #111315;
+  --color-on-accent: #ffffff;
+  --color-ok: #1f6f4a;
+  --color-warn: #7a4f00;
+  --color-danger: #b3261e;
+
+  /* Typo-Skala. */
+  --text-*: initial;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 24px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-lg: 24px;
+  --text-lg--line-height: 32px;
+  --text-xl: 40px;
+  --text-xl--line-height: 48px;
+  --text-2xl: 72px;
+  --text-2xl--line-height: 72px;
+
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+body {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
