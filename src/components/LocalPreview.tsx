@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { replayFile } from "@/lib/arena/replay-file";
-import { BUILTIN_BOTS, generateMap, getBuiltinBot, simulate } from "@/lib/planetwars";
+import { replayFile } from "@/lib/arena/replay-file-v2";
+import { BUILTIN_BOTS, DEMO_BOTS, generateMap, getBuiltinBot, simulate } from "@/lib/game";
 import { controllerFromReplay } from "@/lib/viewer/session";
 import { Arena } from "./arena/Arena";
 
@@ -13,10 +13,11 @@ import { Arena } from "./arena/Arena";
  */
 export function LocalPreview() {
   const [seed, setSeed] = useState(2026);
-  const [bots, setBots] = useState<[string, string]>(["expansion", "sturm"]);
+  const [bots, setBots] = useState<[string, string]>(DEMO_BOTS);
+  const [planets, setPlanets] = useState(15);
 
   const controller = useMemo(() => {
-    const map = generateMap({ seed, planets: 24 });
+    const map = generateMap({ seed, planets });
     const players = bots.map((id) => getBuiltinBot(id) ?? BUILTIN_BOTS[0]);
     const simulation = simulate({ map, bots: [players[0].play, players[1].play] });
     return controllerFromReplay(
@@ -27,11 +28,11 @@ export function LocalPreview() {
         result: simulation.result,
         names: [players[0].name, players[1].name],
         bots: [players[0].id, players[1].id],
-        options: { tickLimit: 300 },
+        options: { rounds: 120 },
         label: "Vorschau im Browser",
       }),
     );
-  }, [seed, bots]);
+  }, [seed, bots, planets]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -59,6 +60,17 @@ export function LocalPreview() {
               </select>
             </label>
           ))}
+          <label className="flex flex-col">
+            <span className="label">Planeten</span>
+            <select
+              value={planets}
+              onChange={(event) => setPlanets(Number(event.target.value))}
+              className="h-5 border border-line bg-surface px-1"
+            >
+              <option value={15}>15</option>
+              <option value={17}>17</option>
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => setSeed(Math.floor(Math.random() * 1_000_000))}
@@ -68,7 +80,7 @@ export function LocalPreview() {
           </button>
         </form>
       </header>
-      <Arena key={controller.meta.id + bots.join()} controller={controller} />
+      <Arena key={controller.meta.id + bots.join() + planets} controller={controller} />
     </div>
   );
 }

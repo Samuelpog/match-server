@@ -3,11 +3,11 @@
 import { useEffect } from "react";
 import type { ArenaController } from "@/lib/viewer/controller";
 import { Battlefield } from "./Battlefield";
-import { EventFeed } from "./EventFeed";
 import { MatchClock } from "./MatchClock";
 import { PlayerPanel } from "./PlayerPanel";
 import { PowerBar } from "./PowerBar";
 import { ResultBanner } from "./ResultBanner";
+import { RoundLog } from "./RoundLog";
 import { Timeline } from "./Timeline";
 
 /** Tastenkürzel der Wiedergabe. Greifen nicht, solange man in ein Feld tippt oder ein Bedienelement den Fokus hat. */
@@ -33,7 +33,7 @@ function useShortcuts(controller: ArenaController) {
 
 /**
  * Die ganze Zuschauer-Ansicht eines Matches: Schlachtfeld, Kräfteverhältnis,
- * Spieler, Gefechte, Zeitleiste. Woher die Frames kommen (Server, Datei,
+ * Spieler, Rundenprotokoll, Zeitleiste. Woher die Frames kommen (Server, Datei,
  * lokale Simulation), entscheidet, wer den Controller füllt.
  */
 export function Arena({
@@ -60,7 +60,7 @@ export function Arena({
         <PlayerPanel controller={controller} player={2} />
       </div>
 
-      <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="flex min-w-0 flex-col gap-2">
           <Battlefield controller={controller}>
             {overlay}
@@ -68,7 +68,7 @@ export function Arena({
           </Battlefield>
           <Timeline controller={controller} />
         </div>
-        <EventFeed controller={controller} />
+        <RoundLog controller={controller} />
       </div>
     </div>
   );

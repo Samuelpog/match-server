@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { SeriesInfo } from "@/lib/arena/api-types";
+import type { SeriesInfo } from "@/lib/arena/api-types-v2";
 import { abortSeries, ApiError, getSeries, sleep } from "@/lib/client/arena-api";
 import { BotBriefing } from "./BotBriefing";
 import { MatchView } from "./MatchView";

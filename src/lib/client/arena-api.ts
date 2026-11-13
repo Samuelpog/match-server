@@ -10,7 +10,7 @@ import type {
   SeriesInfo,
   SeriesListResponse,
   SeriesResponse,
-} from "@/lib/arena/api-types";
+} from "@/lib/arena/api-types-v2";
 
 /** Aufrufe der HTTP-Schnittstelle aus dem Browser. Formen und Pfade: `docs/API.md`. */
 

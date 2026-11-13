@@ -6,7 +6,8 @@ import { drawScene } from "@/lib/viewer/render/draw";
 import { computeLayout, mapAspect, planetAt, type Layout } from "@/lib/viewer/render/layout";
 import { createStarfield, type Starfield } from "@/lib/viewer/render/starfield";
 import { readTheme } from "@/lib/viewer/render/theme";
-import { number, ownerName, OWNER_TEXT } from "./format";
+import { defenseOf } from "@/lib/viewer/model";
+import { BUILDING_NAME, number, ownerName, OWNER_TEXT } from "./format";
 import { OwnerMark } from "./OwnerMark";
 import { useMeta, usePlayback } from "./use-playback";
 
@@ -59,7 +60,7 @@ export function Battlefield({ controller, children }: { controller: ArenaControl
         drawScene(ctx, layout, theme, stars, {
           buffer: controller.buffer,
           pos: controller.pos,
-          tickMs: controller.tickMs,
+          params: controller.meta.params,
           now,
           reducedMotion: motion.matches,
           highlight: highlightRef.current,
@@ -111,7 +112,7 @@ export function Battlefield({ controller, children }: { controller: ArenaControl
       <canvas
         ref={canvasRef}
         role="img"
-        aria-label="Sternenkarte mit Planeten und Flotten. Die Zahlen stehen auch in den Anzeigen daneben."
+        aria-label="Sternenkarte mit Planeten, Routen und Flotten. Was in jeder Runde geschieht, steht auch im Rundenprotokoll."
         className="absolute inset-0 h-full w-full"
       />
       {hover ? <PlanetHint controller={controller} hover={hover} /> : null}
@@ -122,29 +123,39 @@ export function Battlefield({ controller, children }: { controller: ArenaControl
 
 /** Einzelheiten zum Planeten unter dem Mauszeiger. */
 function PlanetHint({ controller, hover }: { controller: ArenaController; hover: Hover }) {
-  const { tick } = usePlayback(controller);
+  const { round } = usePlayback(controller);
   const meta = useMeta(controller);
-  const frame = controller.buffer.frameAt(tick);
+  const frame = controller.buffer.frameAt(round);
   if (!frame) return null;
   const state = frame.planets[hover.planet];
   const def = controller.buffer.map.planets[hover.planet];
+  const defense = defenseOf(def, state, frame.round, meta.params);
   const inbound: [number, number] = [0, 0];
-  for (const fleet of controller.buffer.activeFleets(tick)) {
+  for (const fleet of frame.fleets) {
     if (fleet.to === hover.planet) inbound[fleet.owner - 1] += fleet.ships;
   }
+  const kind = def.home !== 0 ? `Heimat von ${ownerName(meta, def.home)}` : def.hub ? "Knotenplanet" : null;
   return (
     <div
       className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col border border-line bg-surface px-1 py-0.5 text-xs whitespace-nowrap"
-      style={{ left: hover.x, top: hover.y - 10 }}
+      style={{ left: hover.x, top: hover.y - 14 }}
     >
       <span className="flex items-center gap-0.5 font-semibold">
         <OwnerMark owner={state.owner} size={12} />
+        <span>{def.name}</span>
         <span className={OWNER_TEXT[state.owner]}>{ownerName(meta, state.owner)}</span>
-        <span className="text-muted">Planet {def.id}</span>
       </span>
+      {kind ? <span className="text-muted">{kind}</span> : null}
       <span className="tabular">
-        {number.format(state.ships)} Schiffe, +{def.growth} je Tick
+        {number.format(state.ships)} Schiffe, +{def.growth} je Runde
       </span>
+      {defense !== state.ships ? <span className="tabular">verteidigt mit {number.format(defense)}</span> : null}
+      {state.building ? (
+        <span className="tabular">
+          {BUILDING_NAME[state.building.type]}
+          {state.building.ready > frame.round ? `, fertig in Runde ${state.building.ready}` : ""}
+        </span>
+      ) : null}
       {inbound[0] + inbound[1] > 0 ? (
         <span className="tabular text-muted">
           Im Anflug: <span className="text-p1">{number.format(inbound[0])}</span> /{" "}

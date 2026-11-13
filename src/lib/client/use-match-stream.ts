@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ReplayResponse } from "@/lib/arena/api-types";
+import type { ReplayResponse } from "@/lib/arena/api-types-v2";
 import { toFrame, toMap, toMeta } from "@/lib/viewer/adapter";
 import { ArenaController } from "@/lib/viewer/controller";
 import { isOver } from "@/lib/viewer/model";
@@ -65,7 +65,7 @@ export function useMatchStream(id: string, flip = false): MatchStream {
           }
 
           if (!controller || !replay) {
-            controller = new ArenaController(toMap(response.map), toMeta(response.match, flip));
+            controller = new ArenaController(toMap(response.map, flip), toMeta(response.match, flip));
             replay = { ...response, frames: [] };
             clearTimeout(slow);
           } else {
@@ -73,13 +73,13 @@ export function useMatchStream(id: string, flip = false): MatchStream {
           }
 
           if (!controller.append(response.frames.map((frame) => toFrame(frame, flip)))) {
-            // Es fehlt ein Tick: ab dem letzten bekannten neu holen, ohne auf Änderungen zu warten.
-            next = controller.buffer.lastTick + 1;
+            // Es fehlt eine Runde: ab der letzten bekannten neu holen, ohne auf Änderungen zu warten.
+            next = controller.buffer.lastRound + 1;
             version = undefined;
             continue;
           }
           for (const frame of response.frames) {
-            if (frame.t === replay.frames.length) replay.frames.push(frame);
+            if (frame.round === replay.frames.length) replay.frames.push(frame);
           }
           replay = { ...replay, match: response.match, next: replay.frames.length };
           next = replay.frames.length;

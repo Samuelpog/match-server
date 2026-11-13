@@ -1,4 +1,4 @@
-import type { ReplayResponse } from "@/lib/arena/api-types";
+import type { ReplayResponse } from "@/lib/arena/api-types-v2";
 
 /**
  * Beendete Matches im Browser. Der Server vergisst alles, sobald er einschläft
@@ -8,6 +8,8 @@ import type { ReplayResponse } from "@/lib/arena/api-types";
  */
 
 const DB_NAME = "planetwars";
+/** Version 2: Rundenstrategie. Replays des alten Spiels sind nicht mehr abspielbar und werden beim Öffnen entfernt. */
+const DB_VERSION = 2;
 const REPLAYS = "replays";
 const INDEX = "index";
 const KEEP = 40;
@@ -19,7 +21,8 @@ export interface ReplaySummary {
   /** Sitz des Gewinners, `null` bei Unentschieden oder Abbruch. */
   winner: 0 | 1 | null;
   reason: string;
-  ticks: number;
+  /** Zahl der gespielten Runden. */
+  rounds: number;
   label: string | null;
   series: { id: string; game: number } | null;
 }
@@ -32,7 +35,7 @@ function summarize(replay: ReplayResponse): ReplaySummary {
     names: [match.players[0].name ?? "Sitz 1", match.players[1].name ?? "Sitz 2"],
     winner: match.result?.winner ?? null,
     reason: match.result?.reason ?? "unknown",
-    ticks: replay.frames.length - 1,
+    rounds: replay.frames.length - 1,
     label: match.label,
     series: match.series,
   };
@@ -40,10 +43,12 @@ function summarize(replay: ReplayResponse): ReplaySummary {
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = window.indexedDB.open(DB_NAME, 1);
+    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore(REPLAYS);
-      request.result.createObjectStore(INDEX, { keyPath: "id" });
+      const db = request.result;
+      for (const name of [REPLAYS, INDEX]) if (db.objectStoreNames.contains(name)) db.deleteObjectStore(name);
+      db.createObjectStore(REPLAYS);
+      db.createObjectStore(INDEX, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Der Speicher des Browsers ist nicht verfügbar."));
