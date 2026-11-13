@@ -1,5 +1,5 @@
 export * from "./types";
-export { distance, travelTicks, initialState, resolveTick, outcome, seatTotals, SEATS } from "./engine";
+export { distance, travelTicks, initialState, resolveTick, checkOrders, outcome, seatTotals, SEATS } from "./engine";
 export type { TickResult, SeatTotals } from "./engine";
 export { generateMap, twinOf } from "./mapgen";
 export { initialFrame, frameOf, fleetsAt } from "./frames";

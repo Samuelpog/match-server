@@ -1,14 +1,18 @@
-import { handle, json, noChange, pollParams } from "@/lib/http";
-import { getPublicView, waitForChange } from "@/lib/match/service";
-import { getStore } from "@/lib/match/store";
+import { getArena } from "@/lib/arena/arena";
+import type { MatchResponse } from "@/lib/arena/api-types";
+import { matchBriefing } from "@/lib/arena/briefing";
+import { baseUrl, handle, json } from "@/lib/http";
 
-/** Öffentlicher Stand für Zuschauer. Mit `?since=<version>&wait=<s>` wartet der Aufruf auf Änderungen. */
+/** Kopf, Karte und Auftragstext eines Matches. */
 export function GET(request: Request, ctx: RouteContext<"/api/matches/[id]">) {
   return handle(async () => {
     const { id } = await ctx.params;
-    const { since, wait } = pollParams(request);
-    const store = getStore();
-    if (since !== null && !(await waitForChange(store, id, since, wait))) return noChange();
-    return json(await getPublicView(store, id));
+    const arena = getArena();
+    const match = arena.getMatch(id);
+    return json({
+      match: arena.info(match),
+      map: match.map,
+      briefing: matchBriefing(baseUrl(request), match.id),
+    } satisfies MatchResponse);
   });
 }

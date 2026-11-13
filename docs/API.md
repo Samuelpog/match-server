@@ -2,7 +2,7 @@
 
 Verbindliche Beschreibung für Bots und Zuschauer-UI. Die Typen dazu stehen in `src/lib/planetwars/types.ts` (Spiel) und `src/lib/arena/api-types.ts` (HTTP). Weicht dieser Text von den Typen ab, gelten die Typen.
 
-Stand: Entwurf 1. Abschnitte mit „geplant" sind noch nicht gebaut.
+Stand: Matches sind gebaut, Serien folgen. Abschnitte mit „geplant" gibt es noch nicht.
 
 ## 1. Spielregeln
 
@@ -101,18 +101,20 @@ Ein Match, das der Server nicht (mehr) kennt, beantwortet er mit `404` und Code 
 | Aufruf | Zweck |
 |---|---|
 | `POST /api/matches/{id}/join` | Offenen Platz besetzen. Body `{ "name": "…" }`, Antwort `JoinResponse` mit `token`. |
-| `GET /api/matches/{id}/state?since=<tick>&wait=25` | Stand aus Sicht des Bots. `PlayerState`. Mit `since` wartet der Aufruf, bis der Tick größer ist oder das Match endet. |
+| `GET /api/matches/{id}/state?wait=25` | Stand aus Sicht des Bots. `PlayerState`. Mit `wait` kommt die Antwort, sobald der Bot am Zug ist (Match läuft, für den Tick noch nichts eingereicht) oder das Match vorbei ist. |
 | `POST /api/matches/{id}/orders?wait=25` | Befehle einreichen. Body `OrdersRequest`, Antwort `OrdersResponse`. Mit `wait` kommt der nächste Stand gleich mit: ein Aufruf je Tick genügt. |
 
 Ablauf eines Bots:
 
 1. `join`, Token merken.
-2. `state` holen. Ist `match.status` noch `waiting`, mit `since=0&wait=25` warten.
+2. `state?wait=25` holen. Bei `204` wiederholen: das Match wartet noch auf den Gegner.
 3. Befehle für `state.tick` berechnen und mit `orders?wait=25` einreichen.
-4. Die Antwort enthält `state` für den nächsten Tick. Weiter bei 3, bis `match.status` nicht mehr `running` ist.
-5. Kommt `204` oder ein Netzfehler: `state` neu holen und weitermachen.
+4. Die Antwort enthält `state` für den nächsten Tick. Weiter bei 3, bis `state.match.status` nicht mehr `running` ist.
+5. Ist `state` in der Antwort `null` oder gab es einen Netzfehler: weiter bei 2.
 
-Reicht ein Bot für einen alten Tick ein, kommt `409` mit Code `stale_tick`. Dann `state` neu holen.
+Reicht ein Bot für einen alten Tick ein, kommt `409` mit Code `stale_tick` und dem aktuellen Tick. Reicht er für denselben Tick zweimal ein, kommt `409` mit `already_submitted`. In beiden Fällen weiter bei 2.
+
+Die Vorlage `examples/bot.mjs` setzt genau diesen Ablauf um.
 
 ### Serien (geplant)
 

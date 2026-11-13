@@ -1,7 +1,9 @@
-import { errors, MatchError } from "@/lib/match/errors";
+import { timingSafeEqual } from "node:crypto";
+import { ARENA_LIMITS } from "@/lib/arena/arena";
+import { ArenaError, errors } from "@/lib/arena/errors";
 
-/** Längste Wartezeit für `?wait=`, in Sekunden. */
-export const MAX_WAIT_SECONDS = 25;
+/** Größter Body, den der Server liest. */
+const MAX_BODY_BYTES = 64 * 1024;
 
 export function json(data: unknown, status = 200) {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
@@ -12,12 +14,12 @@ export function noChange() {
 }
 
 /** Führt einen Handler aus und übersetzt Fehler in eine einheitliche JSON-Antwort. */
-export async function handle(run: () => Promise<Response>): Promise<Response> {
+export async function handle(run: () => Promise<Response> | Response): Promise<Response> {
   try {
     return await run();
   } catch (error) {
-    if (error instanceof MatchError) {
-      return json({ error: { code: error.code, message: error.message } }, error.status);
+    if (error instanceof ArenaError) {
+      return json({ error: { code: error.code, message: error.message, ...error.details } }, error.status);
     }
     console.error(error);
     return json({ error: { code: "internal_error", message: "Interner Fehler im Match-Server." } }, 500);
@@ -29,9 +31,22 @@ export function bearer(request: Request): string | null {
   return match ? match[1].trim() : null;
 }
 
+/**
+ * Prüft den Arena-Schlüssel im Kopf `X-Arena-Key`. Ist beim Server kein
+ * `ARENA_KEY` gesetzt, ist alles erlaubt.
+ */
+export function requireArenaKey(request: Request) {
+  const expected = process.env.ARENA_KEY;
+  if (!expected) return;
+  const given = Buffer.from(request.headers.get("x-arena-key") ?? "");
+  const wanted = Buffer.from(expected);
+  if (given.length !== wanted.length || !timingSafeEqual(given, wanted)) throw errors.arenaKey();
+}
+
 /** Liest den JSON-Body. Ein leerer Body zählt als leeres Objekt. */
 export async function readBody(request: Request): Promise<Record<string, unknown>> {
   const text = await request.text();
+  if (text.length > MAX_BODY_BYTES) throw errors.tooLarge();
   if (!text.trim()) return {};
   let parsed: unknown;
   try {
@@ -45,16 +60,32 @@ export async function readBody(request: Request): Promise<Record<string, unknown
   return parsed as Record<string, unknown>;
 }
 
-/** Liest `?since=` und `?wait=`. Ohne `since` wird nie gewartet. */
-export function pollParams(request: Request): { since: number | null; wait: number } {
-  const params = new URL(request.url).searchParams;
-  const since = params.get("since");
-  if (since === null) return { since: null, wait: 0 };
-  const sinceNumber = Number(since);
-  if (!Number.isInteger(sinceNumber) || sinceNumber < 0) {
-    throw errors.badRequest('"since" muss eine Versionsnummer sein.');
+/** Liest einen ganzzahligen Parameter ab 0. Fehlt er, gilt `fallback`. */
+export function intParam<T extends number | null>(request: Request, name: string, fallback: T): number | T {
+  const raw = new URL(request.url).searchParams.get(name);
+  if (raw === null || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) throw errors.badRequest(`"${name}" muss eine ganze Zahl ab 0 sein.`);
+  return value;
+}
+
+/** Liest `?wait=` in Millisekunden, gedeckelt auf die längste Wartezeit. `null`, wenn der Parameter fehlt. */
+export function waitParam(request: Request): number | null {
+  const raw = new URL(request.url).searchParams.get("wait");
+  if (raw === null || raw === "") return null;
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds < 0) throw errors.badRequest('"wait" muss eine Zahl ab 0 sein.');
+  return Math.min(seconds, ARENA_LIMITS.maxWaitSeconds) * 1000;
+}
+
+/** Öffentliche Adresse des Servers, für Links und Auftragstexte. */
+export function baseUrl(request: Request): string {
+  const fixed = process.env.PUBLIC_URL ?? process.env.RENDER_EXTERNAL_URL;
+  if (fixed) return fixed.replace(/\/+$/, "");
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  if (host) {
+    const proto = request.headers.get("x-forwarded-proto")?.split(",")[0].trim() ?? (host.startsWith("localhost") ? "http" : "https");
+    return `${proto}://${host}`;
   }
-  const wait = Number(params.get("wait") ?? 0);
-  if (!Number.isFinite(wait) || wait < 0) throw errors.badRequest('"wait" muss eine Zahl ab 0 sein.');
-  return { since: sinceNumber, wait: Math.min(wait, MAX_WAIT_SECONDS) };
+  return new URL(request.url).origin;
 }
