@@ -2,19 +2,26 @@
 /**
  * Beispiel-Bot für die Planet Wars Arena. Ohne Abhängigkeiten, Node 22 oder neuer.
  *
- * Einem Match beitreten:      node examples/bot.mjs --match <id> --name Alpha
- * Einer Serie beitreten:      node examples/bot.mjs --series <id> --name Alpha
- * Gegen einen eingebauten Bot: node examples/bot.mjs --vs expansion --name Alpha
+ * Einem Match beitreten:       node examples/bot.mjs --match <id> --name Alpha
+ * Einer Serie beitreten:       node examples/bot.mjs --series <id> --name Alpha
+ * Gegen einen eingebauten Bot: node examples/bot.mjs --vs standard --name Alpha
  *
- * Weitere Schalter: --url <Adresse des Servers>, --key <Arena-Schlüssel> (nur für --vs).
- * Standard-Adresse ist die Umgebungsvariable ARENA_URL, sonst http://localhost:3000.
+ * Weitere Schalter:
+ *   --strategy <Datei>  Strategie, Standard ist ./strategy.mjs neben dieser Datei
+ *   --url <Adresse>     Server, sonst die Umgebungsvariable ARENA_URL, sonst http://localhost:3000
+ *   --key <Schlüssel>   Arena-Schlüssel, nur für --vs
+ *   --takt turnier      nur für --vs: 8 Sekunden je Runde statt des schnellen Testtakts
  *
  * Hinter einem HTTPS-Proxy (Cloud-Umgebung) mit NODE_USE_ENV_PROXY=1 starten,
  * sonst beachtet Node die Variable HTTPS_PROXY nicht.
  *
- * Die Strategie steht in `decide()` und ist absichtlich schlicht. Alles
- * andere ist das Protokoll und kann so bleiben.
+ * Fairness-Regel: Ein Bot ruft nur health, join, state, orders und me auf.
+ * Diese Datei ist das Protokoll und kann so bleiben. Die Strategie steht in
+ * strategy.mjs: eine Funktion, Stand hinein, Aktionen heraus. Dieselbe
+ * Funktion läuft im Simulator (`npm run sim`).
  */
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const args = Object.fromEntries(
   process.argv.slice(2).flatMap((arg, index, all) => (arg.startsWith("--") ? [[arg.slice(2), all[index + 1] ?? ""]] : [])),
@@ -23,47 +30,9 @@ const BASE = (args.url || process.env.ARENA_URL || "http://localhost:3000").repl
 const NAME = args.name || "Beispiel-Bot";
 const WAIT = 25;
 
-// ---------------------------------------------------------------- Strategie
-
-/**
- * Bekommt den Stand (`PlayerState` aus docs/API.md) und gibt Befehle zurück.
- * Hier: jeder eigene Planet greift den nächstgelegenen fremden Planeten an,
- * den er sicher erobern kann. Wer kein Ziel findet, schickt die Hälfte seiner
- * Schiffe an den eigenen Planeten, der dem Gegner am nächsten liegt.
- */
-function decide(state) {
-  const me = state.you;
-  const ticks = (a, b) => Math.max(1, Math.ceil(Math.hypot(a.x - b.x, a.y - b.y) / state.speed));
-  const onTheWay = new Map();
-  for (const fleet of state.fleets) {
-    if (fleet.owner === me) onTheWay.set(fleet.to, (onTheWay.get(fleet.to) ?? 0) + fleet.ships);
-  }
-
-  const mine = state.planets.filter((planet) => planet.owner === me);
-  const enemies = state.planets.filter((planet) => planet.owner !== me && planet.owner !== null);
-  const reach = (planet) => Math.min(...enemies.map((enemy) => ticks(planet, enemy)));
-  const front = enemies.length > 0 ? mine.reduce((best, planet) => (reach(planet) < reach(best) ? planet : best), mine[0]) : null;
-
-  const orders = [];
-  for (const source of mine) {
-    let best = null;
-    for (const target of state.planets) {
-      if (target.owner === me) continue;
-      const eta = ticks(source, target);
-      const defence = target.ships + (target.owner === null ? 0 : target.growth * eta);
-      const need = defence + 1 - (onTheWay.get(target.id) ?? 0);
-      if (need <= 0 || need > source.ships - 5) continue;
-      if (!best || eta < best.eta) best = { target, eta, need };
-    }
-    if (best) {
-      orders.push({ from: source.id, to: best.target.id, ships: best.need });
-      onTheWay.set(best.target.id, (onTheWay.get(best.target.id) ?? 0) + best.need);
-    } else if (front && source.id !== front.id && source.ships >= 40) {
-      orders.push({ from: source.id, to: front.id, ships: Math.floor(source.ships / 2) });
-    }
-  }
-  return orders;
-}
+const strategyUrl = args.strategy ? pathToFileURL(resolve(args.strategy)).href : new URL("./strategy.mjs", import.meta.url).href;
+const { default: decide } = await import(strategyUrl);
+if (typeof decide !== "function") throw new Error("Die Strategie-Datei braucht eine Funktion als Standard-Export.");
 
 // ----------------------------------------------------------------- Protokoll
 
@@ -120,25 +89,33 @@ async function playMatch(matchId, token) {
       continue;
     }
 
-    const orders = decide(state);
+    let actions = [];
     try {
-      const answer = await call("POST", `${path}/orders?wait=${WAIT}`, { token, body: { tick: state.tick, orders } });
-      for (const rejected of answer.rejected) console.error(`  Tick ${state.tick}: Befehl ${rejected.index} abgelehnt (${rejected.code})`);
-      if (state.tick % 20 === 0) {
+      actions = decide(state) ?? [];
+    } catch (error) {
+      // Ein Fehler in der Strategie kostet nur diese Runde.
+      console.error(`  Runde ${state.round}: Fehler in der Strategie (${error.message}), keine Aktionen`);
+    }
+    try {
+      const answer = await call("POST", `${path}/orders?wait=${WAIT}`, { token, body: { round: state.round, actions } });
+      answer.results.forEach((result, index) => {
+        if (!result.ok) console.error(`  Runde ${state.round}: Aktion ${index} abgelehnt (${result.code})`);
+      });
+      if (state.round % 10 === 0) {
         const mine = state.planets.filter((planet) => planet.owner === state.you);
-        console.log(`  Tick ${state.tick}: ${mine.length} Planeten, ${mine.reduce((sum, planet) => sum + planet.ships, 0)} Schiffe am Boden`);
+        console.log(`  Runde ${state.round}: ${mine.length} Planeten, Punkte ${state.score[state.you]}:${state.score[1 - state.you]}`);
       }
       // Mit ?wait= kommt der nächste Stand gleich mit. Sonst oben neu holen.
       state = answer.state;
     } catch (error) {
       // Zu spät oder doppelt eingereicht: einfach den aktuellen Stand holen und weiterspielen.
-      if (error.code !== "stale_tick" && error.code !== "already_submitted") throw error;
+      if (!["stale_round", "already_submitted", "too_late"].includes(error.code)) throw error;
       state = null;
     }
   }
   const { result } = state.match;
   const verdict = result.winner === null ? "unentschieden" : result.winner === state.you ? "gewonnen" : "verloren";
-  console.log(`Match ${matchId} beendet nach Tick ${state.match.tick}: ${verdict} (${result.reason})`);
+  console.log(`Match ${matchId} beendet nach Runde ${state.match.round}: ${verdict} (${result.reason})`);
   return result;
 }
 
@@ -164,15 +141,17 @@ async function playSeries(seriesId) {
 }
 
 async function main() {
-  await wake();
+  const health = await wake();
+  console.log(`Regelstand: ${health.rules}`);
   if (args.series) return playSeries(args.series);
 
   let matchId = args.match;
   if (!matchId) {
-    const opponent = args.vs || "expansion";
+    const opponent = args.vs || "standard";
+    const preset = health.presets[args.takt === "turnier" ? "turnier" : "test"];
     const created = await call("POST", "/api/matches", {
       key: args.key || process.env.ARENA_KEY,
-      body: { players: [{ type: "open" }, { type: "bot", bot: opponent }] },
+      body: { players: [{ type: "open" }, { type: "bot", bot: opponent }], options: preset },
     });
     matchId = created.match.id;
     console.log(`Match ${matchId} gegen "${opponent}" angelegt. Zuschauen: ${BASE}/m/${matchId}`);

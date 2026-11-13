@@ -7,7 +7,7 @@ const ENDPOINTS = [
     method: "GET",
     path: "/api/health",
     auth: "keiner",
-    text: "Lebenszeichen. Nennt die Start-Kennung bootId, die eingebauten Bots, Standardwerte und Grenzen.",
+    text: "Lebenszeichen. Nennt die Start-Kennung bootId, den Regelstand mit allen Zahlenwerten, die Voreinstellungen für den Takt, die eingebauten Bots und die Grenzen.",
   },
   {
     method: "POST",
@@ -29,9 +29,9 @@ const ENDPOINTS = [
   },
   {
     method: "GET",
-    path: "/api/matches/{id}/replay?from=TICK&since=VERSION&wait=SEKUNDEN",
+    path: "/api/matches/{id}/replay?from=RUNDE&since=VERSION&wait=SEKUNDEN",
     auth: "keiner",
-    text: "Frames ab Tick from. Live-Strom und Replay in einem: die Antwort mit from=0 ist die Replay-Datei.",
+    text: "Frames ab Runde from. Live-Strom und Replay in einem: die Antwort mit from=0 ist die Replay-Datei.",
   },
   {
     method: "POST",
@@ -43,13 +43,13 @@ const ENDPOINTS = [
     method: "GET",
     path: "/api/matches/{id}/state?wait=SEKUNDEN",
     auth: "Spieler-Token",
-    text: "Stand aus Sicht des Bots: Planeten, Flotten, Tick und Frist. Mit wait kommt die Antwort, sobald der Bot am Zug ist oder das Match endet.",
+    text: "Stand aus Sicht des Bots: Planeten, Routen, Flotten, Runde, Frist und Punkte. Mit wait kommt die Antwort, sobald der Bot am Zug ist oder das Match endet.",
   },
   {
     method: "POST",
     path: "/api/matches/{id}/orders?wait=SEKUNDEN",
     auth: "Spieler-Token",
-    text: 'Reicht Befehle ein. Body: { "tick": Zahl, "orders": [{ "from", "to", "ships" }] }. Mit wait enthält die Antwort schon den nächsten Stand.',
+    text: 'Reicht Aktionen ein. Body: { "round": Zahl, "actions": [{ "type": "move", "from", "to", "ships" }] }. Höchstens drei gültige Aktionen je Runde. Mit wait enthält die Antwort schon den nächsten Stand.',
   },
   {
     method: "POST",
@@ -93,7 +93,7 @@ const ERRORS = [
   ["400", "bad_request, unknown_bot", "Die Anfrage ist fehlerhaft."],
   ["401", "unauthorized, arena_key_required", "Token oder Schlüssel fehlt oder ist falsch."],
   ["404", "match_not_found, series_not_found", "Der Server kennt das Match oder die Serie nicht (mehr). Nach einem Neustart ist alles weg."],
-  ["409", "match_full, match_not_running, stale_tick, already_submitted, already_over", "Die Anfrage passt nicht zum aktuellen Stand."],
+  ["409", "match_full, match_not_running, stale_round, already_submitted, too_late, already_over", "Die Anfrage passt nicht zum aktuellen Stand."],
   ["413", "body_too_large", "Der Body ist größer als 64 KB."],
   ["429", "arena_busy", "Es laufen schon zu viele Matches."],
 ];
@@ -109,6 +109,12 @@ export default function Page() {
           Kopf <code className="font-mono text-ink">X-Arena-Key</code>. Spielregeln, Takt und alle Felder stehen in{" "}
           <code className="font-mono text-ink">docs/API.md</code> im Repository, eine Bot-Vorlage in{" "}
           <code className="font-mono text-ink">examples/bot.mjs</code>.
+        </p>
+        <p className="text-muted">
+          Fairness-Regel: Ein Bot ruft nur <code className="font-mono text-ink">health</code>,{" "}
+          <code className="font-mono text-ink">join</code>, <code className="font-mono text-ink">state</code>,{" "}
+          <code className="font-mono text-ink">orders</code> und <code className="font-mono text-ink">me</code> auf.
+          Der Zuschauer-Strom und die Match-Liste sind für Menschen.
         </p>
       </header>
 

@@ -48,6 +48,6 @@ Ungeprüft: ob Render Free-Instanzen auch ohne Schlafmodus jederzeit neu starten
 
 ## Offen
 
-- Aufwachzeit aus dem Schlafmodus messen.
+- Aufwachzeit gemessen am 2026-11-13: erster Aufruf 200 nach 22,8 s, siehe `a-0016`.
 - **Offener Server:** `createKeyRequired` ist `false`, jeder im Internet kann Matches anlegen. Für den Betrieb in der Architektur klären. Dabei beachten (Hinweis von Agent-B): `CREATE_KEY` und Spieler-Tokens nutzen beide `Authorization: Bearer`. Setzt ein Proxy den Schlüssel ein, überschreibt er vermutlich die Spieler-Tokens. Der Schlüssel braucht dann einen eigenen Kopf.
 - Bots über Long-Polling (höchstens 25 Sekunden, in beiden Umgebungen gemessen) und Zuschauer über SSE: Entscheidung nach dem Pflichtenheft.

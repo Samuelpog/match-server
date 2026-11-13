@@ -1,4 +1,4 @@
-import type { SeriesJoinResponse } from "@/lib/arena/api-types";
+import type { SeriesJoinResponse } from "@/lib/arena/api-types-v2";
 import { getSeries } from "@/lib/arena/series";
 import { handle, json, readBody } from "@/lib/http";
 

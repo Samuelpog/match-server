@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import type { ArenaController, PlaybackState } from "@/lib/viewer/controller";
 import type { MatchMeta } from "@/lib/viewer/model";
 
-/** Zustand des Abspielkopfs. Ändert sich höchstens einmal je Tick, nicht je Bild. */
+/** Zustand des Abspielkopfs. Ändert sich höchstens zweimal je Runde, nicht je Bild. */
 export function usePlayback(controller: ArenaController): PlaybackState {
   return useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
 }

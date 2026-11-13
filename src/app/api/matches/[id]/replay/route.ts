@@ -2,7 +2,7 @@ import { getArena } from "@/lib/arena/arena";
 import { handle, intParam, json, noChange, waitParam } from "@/lib/http";
 
 /**
- * Frames ab Tick `from`: Live-Strom und Replay in einem. Mit `wait` hält der
+ * Frames ab Runde `from`: Live-Strom und Replay in einem. Mit `wait` hält der
  * Aufruf, bis es neue Frames gibt oder das Match endet, mit `since` auch bis
  * sich nur der Kopf des Matches ändert. Kommt nichts, antwortet er mit 204.
  */

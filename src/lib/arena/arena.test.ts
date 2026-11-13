@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { generateMap, getBuiltinBot, simulate } from "@/lib/planetwars";
+import { RULES, generateMap, getBuiltinBot, neighbors, simulate } from "@/lib/game";
 import { ARENA_LIMITS, Arena, normalizeOptions } from "./arena";
 import { ArenaError } from "./errors";
 
@@ -28,58 +28,70 @@ function code(run: () => unknown): string {
 
 /** Legt ein Match mit zwei externen Bots an und lässt beide beitreten. */
 function twoExternal(options = {}) {
-  const match = arena.createMatch({ options: { seed: 7, tickMs: 100, timeoutMs: 1000, tickLimit: 50, ...options } });
+  const match = arena.createMatch({ options: { seed: 7, roundMs: 100, timeoutMs: 1000, rounds: 50, ...options } });
   const a = arena.join(match.id, "Alpha");
   const b = arena.join(match.id, "Beta");
   return { match, a, b };
 }
 
+/** Ein gültiger Zug: zehn Schiffe vom Heimatplaneten des Sitzes zu seinem ersten Nachbarn. */
+function firstMove(match: { map: Parameters<typeof neighbors>[0] }, seat: 0 | 1) {
+  const from = match.map.homes[seat];
+  return { type: "move", from, to: neighbors(match.map)[from][0].planet, ships: 10 };
+}
+
 describe("Einstellungen", () => {
   it("füllt Standardwerte und zieht einen zufälligen Seed", () => {
     const options = normalizeOptions(undefined);
-    expect(options).toMatchObject({ planets: 24, tickLimit: 300, tickMs: 300, timeoutMs: 2000 });
+    expect(options).toMatchObject({ planets: 15, rounds: 120, roundMs: 8000, timeoutMs: 5000 });
     expect(Number.isInteger(options.seed)).toBe(true);
   });
 
   it("lehnt Werte außerhalb der Bereiche ab", () => {
-    expect(code(() => normalizeOptions({ planets: 31 }))).toBe("bad_request");
-    expect(code(() => normalizeOptions({ tickLimit: 5 }))).toBe("bad_request");
-    expect(code(() => normalizeOptions({ tickMs: 10 }))).toBe("bad_request");
+    expect(code(() => normalizeOptions({ planets: 16 }))).toBe("bad_request");
+    expect(code(() => normalizeOptions({ planets: 24 }))).toBe("bad_request");
+    expect(code(() => normalizeOptions({ rounds: 5 }))).toBe("bad_request");
+    expect(code(() => normalizeOptions({ roundMs: 10 }))).toBe("bad_request");
     expect(code(() => normalizeOptions({ seed: -1 }))).toBe("bad_request");
     expect(code(() => normalizeOptions({ seed: "abc" }))).toBe("bad_request");
     expect(code(() => normalizeOptions([]))).toBe("bad_request");
+    expect(normalizeOptions({ planets: 17 }).planets).toBe(17);
   });
 
-  it("hebt die Frist auf die Mindestdauer eines Ticks", () => {
-    expect(normalizeOptions({ tickMs: 3000, timeoutMs: 500 }).timeoutMs).toBe(3000);
+  it("weist die Optionen des alten Spiels mit einem Hinweis zurück", () => {
+    expect(code(() => normalizeOptions({ tickMs: 300 }))).toBe("bad_request");
+    expect(code(() => normalizeOptions({ tickLimit: 300 }))).toBe("bad_request");
+  });
+
+  it("erlaubt eine Frist, die kürzer ist als die Runde", () => {
+    expect(normalizeOptions({ roundMs: 8000, timeoutMs: 5000 })).toMatchObject({ roundMs: 8000, timeoutMs: 5000 });
   });
 });
 
 describe("Demo mit eingebauten Bots", () => {
   it("startet sofort, läuft im Takt und endet mit demselben Ergebnis wie die Simulation", () => {
-    const match = arena.createMatch({ demo: true, options: { seed: 2026, tickMs: 100 } });
+    const match = arena.createMatch({ demo: true, options: { seed: 2026, roundMs: 100 } });
     expect(match.status).toBe("running");
     expect(match.frames).toHaveLength(1);
 
     vi.advanceTimersByTime(99);
-    expect(match.state.tick).toBe(0);
+    expect(match.state.round).toBe(0);
     vi.advanceTimersByTime(1);
-    expect(match.state.tick).toBe(1);
+    expect(match.state.round).toBe(1);
     vi.advanceTimersByTime(1000);
-    expect(match.state.tick).toBe(11);
+    expect(match.state.round).toBe(11);
 
-    vi.advanceTimersByTime(300 * 100);
+    vi.advanceTimersByTime(120 * 100);
     expect(match.status).toBe("finished");
 
     const expected = simulate({
-      map: generateMap({ seed: 2026, planets: 24 }),
-      bots: [getBuiltinBot("expansion")!.play, getBuiltinBot("sturm")!.play],
-      tickLimit: 300,
+      map: generateMap({ seed: 2026, planets: 15 }),
+      bots: [getBuiltinBot("standard")!.play, getBuiltinBot("sturm")!.play],
+      rounds: 120,
     });
+    const core = ({ planets, fleets, events, actions }: (typeof expected.frames)[number]) => ({ planets, fleets, events, actions });
     expect(match.result).toEqual(expected.result);
-    expect(match.frames.map(({ planets, launches, events }) => ({ planets, launches, events }))).toEqual(
-      expected.frames.map(({ planets, launches, events }) => ({ planets, launches, events })),
-    );
+    expect(match.frames.map(core)).toEqual(expected.frames.map(core));
     expect(match.frames.at(-1)!.at).toBe((match.frames.length - 1) * 100);
     expect(match.finishedAt).not.toBeNull();
   });
@@ -88,9 +100,12 @@ describe("Demo mit eingebauten Bots", () => {
     const match = arena.createMatch({ options: { seed: 3 } });
     expect(match.status).toBe("waiting");
     const replay = arena.replay(match, 0);
-    expect(replay.map).toEqual(generateMap({ seed: 3, planets: 24 }));
+    expect(replay.map).toEqual(generateMap({ seed: 3, planets: 15 }));
     expect(replay.frames).toHaveLength(1);
-    expect(replay.frames[0].t).toBe(0);
+    expect(replay.frames[0].round).toBe(0);
+    expect(replay.version).toBe(2);
+    expect(replay.match).toMatchObject({ rules: RULES, round: 0, rounds: 120 });
+    expect(replay.match.params.actions).toEqual({ base: 3, max: 5 });
     expect(replay.next).toBe(1);
     expect(replay.format).toBe("planetwars-replay");
   });
@@ -140,157 +155,182 @@ describe("Beitreten", () => {
 describe("Takt und Fristen", () => {
   it("löst auf, sobald beide eingereicht haben, aber nicht vor der Mindestdauer", () => {
     const { match } = twoExternal();
-    arena.submitOrders(match, 0, 0, []);
+    arena.submitOrders(match, 0, 1, []);
     vi.advanceTimersByTime(50);
-    arena.submitOrders(match, 1, 0, []);
-    expect(match.state.tick).toBe(0);
+    arena.submitOrders(match, 1, 1, []);
+    expect(match.state.round).toBe(0);
     vi.advanceTimersByTime(49);
-    expect(match.state.tick).toBe(0);
+    expect(match.state.round).toBe(0);
     vi.advanceTimersByTime(1);
-    expect(match.state.tick).toBe(1);
+    expect(match.state.round).toBe(1);
     expect(match.frames[1].players.map((player) => player.submitted)).toEqual([true, true]);
   });
 
   it("löst sofort auf, wenn der zweite nach der Mindestdauer einreicht", () => {
     const { match } = twoExternal();
-    arena.submitOrders(match, 0, 0, []);
+    arena.submitOrders(match, 0, 1, []);
     vi.advanceTimersByTime(400);
-    expect(match.state.tick).toBe(0);
-    arena.submitOrders(match, 1, 0, []);
+    expect(match.state.round).toBe(0);
+    arena.submitOrders(match, 1, 1, []);
     vi.advanceTimersByTime(0);
-    expect(match.state.tick).toBe(1);
+    expect(match.state.round).toBe(1);
     expect(match.frames[1].at).toBe(400);
   });
 
-  it("gibt dem ersten Tick mindestens fünf Sekunden und löst dann ohne den Säumigen auf", () => {
+  it("gibt der ersten Runde mindestens fünf Sekunden und löst dann ohne den Säumigen auf", () => {
     const { match } = twoExternal();
-    arena.submitOrders(match, 0, 0, [{ from: 0, to: 2, ships: 10 }]);
-    vi.advanceTimersByTime(ARENA_LIMITS.firstTickGraceMs - 1);
-    expect(match.state.tick).toBe(0);
+    arena.submitOrders(match, 0, 1, [firstMove(match, 0)]);
+    vi.advanceTimersByTime(ARENA_LIMITS.firstRoundGraceMs - 1);
+    expect(match.state.round).toBe(0);
     vi.advanceTimersByTime(1);
-    expect(match.state.tick).toBe(1);
-    expect(match.frames[1].players[0]).toMatchObject({ submitted: true, accepted: 1 });
-    expect(match.frames[1].players[1]).toMatchObject({ submitted: false, accepted: 0 });
-    expect(match.frames[1].launches).toHaveLength(1);
+    expect(match.state.round).toBe(1);
+    expect(match.frames[1].players[0]).toMatchObject({ submitted: true, actions: { used: 1, limit: 3 } });
+    expect(match.frames[1].players[1]).toMatchObject({ submitted: false, actions: { used: 0, limit: 3 } });
+    expect(match.frames[1].fleets).toHaveLength(1);
   });
 
-  it("wartet ab dem zweiten Tick nur noch die normale Frist", () => {
+  it("wartet ab der zweiten Runde nur noch die normale Frist", () => {
     const { match } = twoExternal();
-    vi.advanceTimersByTime(ARENA_LIMITS.firstTickGraceMs);
-    expect(match.state.tick).toBe(1);
+    vi.advanceTimersByTime(ARENA_LIMITS.firstRoundGraceMs);
+    expect(match.state.round).toBe(1);
     vi.advanceTimersByTime(999);
-    expect(match.state.tick).toBe(1);
+    expect(match.state.round).toBe(1);
     vi.advanceTimersByTime(1);
-    expect(match.state.tick).toBe(2);
+    expect(match.state.round).toBe(2);
+  });
+
+  it("nimmt im Turniertakt nach der Frist nichts mehr an und löst erst nach der Rundendauer auf", () => {
+    const { match } = twoExternal({ roundMs: 8000, timeoutMs: 5000 });
+    arena.submitOrders(match, 0, 1, []);
+    arena.submitOrders(match, 1, 1, []);
+    vi.advanceTimersByTime(7999);
+    expect(match.state.round).toBe(0);
+    vi.advanceTimersByTime(1);
+    expect(match.state.round).toBe(1);
+
+    // Runde 2: Sitz 0 reicht rechtzeitig ein, Sitz 1 kommt nach der Frist.
+    arena.submitOrders(match, 0, 2, []);
+    expect(arena.playerState(match, 1).deadlineMs).toBe(5000);
+    vi.advanceTimersByTime(5001);
+    expect(code(() => arena.submitOrders(match, 1, 2, []))).toBe("too_late");
+    expect(arena.playerState(match, 1).deadlineMs).toBe(0);
+    vi.advanceTimersByTime(2998);
+    expect(match.state.round).toBe(1);
+    vi.advanceTimersByTime(1);
+    expect(match.state.round).toBe(2);
+    expect(match.frames[2].players.map((player) => player.submitted)).toEqual([true, false]);
   });
 
   it("wartet nach fünf verpassten Fristen nicht mehr auf einen Bot, bis er wieder einreicht", () => {
     const { match } = twoExternal();
-    const play = () => arena.submitOrders(match, 0, match.state.tick, []);
-    // Fünf Ticks lang reicht nur Sitz 0 ein, jeder kostet die volle Frist.
+    const play = () => arena.submitOrders(match, 0, match.state.round + 1, []);
+    // Fünf Runden lang reicht nur Sitz 0 ein, jede kostet die volle Frist.
     play();
-    vi.advanceTimersByTime(ARENA_LIMITS.firstTickGraceMs);
+    vi.advanceTimersByTime(ARENA_LIMITS.firstRoundGraceMs);
     for (let i = 0; i < 4; i++) {
       play();
       vi.advanceTimersByTime(1000);
     }
-    expect(match.state.tick).toBe(5);
+    expect(match.state.round).toBe(5);
     expect(arena.info(match).players[1].absent).toBe(true);
 
     // Jetzt geht es im Takt weiter, ohne Frist.
     play();
     vi.advanceTimersByTime(100);
-    expect(match.state.tick).toBe(6);
+    expect(match.state.round).toBe(6);
 
     // Meldet sich der Bot zurück, wird wieder auf ihn gewartet.
-    arena.submitOrders(match, 1, 6, []);
+    arena.submitOrders(match, 1, 7, []);
     expect(arena.info(match).players[1].absent).toBe(false);
     play();
     vi.advanceTimersByTime(100);
-    expect(match.state.tick).toBe(7);
+    expect(match.state.round).toBe(7);
     play();
     vi.advanceTimersByTime(999);
-    expect(match.state.tick).toBe(7);
+    expect(match.state.round).toBe(7);
     vi.advanceTimersByTime(1);
-    expect(match.state.tick).toBe(8);
+    expect(match.state.round).toBe(8);
   });
 
-  it("läuft auch ohne jeden Bot bis zum Tick-Limit durch und blockiert nie", () => {
-    const { match } = twoExternal({ tickLimit: 30 });
-    vi.advanceTimersByTime(ARENA_LIMITS.firstTickGraceMs + 4 * 1000 + 30 * 100);
+  it("läuft auch ohne jeden Bot bis zur letzten Runde durch und blockiert nie", () => {
+    const { match } = twoExternal({ rounds: 30 });
+    vi.advanceTimersByTime(ARENA_LIMITS.firstRoundGraceMs + 4 * 1000 + 30 * 100);
     expect(match.status).toBe("finished");
-    expect(match.state.tick).toBe(30);
+    expect(match.state.round).toBe(30);
     expect(match.result).toEqual({ winner: null, reason: "draw" });
   });
 
   it("lässt einen externen Bot gegen einen eingebauten spielen", () => {
     const match = arena.createMatch({
       players: [{ type: "open" }, { type: "bot", bot: "passiv" }],
-      options: { seed: 5, tickMs: 100, timeoutMs: 1000, tickLimit: 40 },
+      options: { seed: 5, roundMs: 100, timeoutMs: 1000, rounds: 40 },
     });
     arena.join(match.id, "Solo");
-    arena.submitOrders(match, 0, 0, []);
+    arena.submitOrders(match, 0, 1, []);
     vi.advanceTimersByTime(100);
-    expect(match.state.tick).toBe(1);
+    expect(match.state.round).toBe(1);
     expect(match.frames[1].players[1].submitted).toBe(true);
   });
 });
 
-describe("Befehle", () => {
-  it("meldet angenommene und abgelehnte Befehle sofort", () => {
+describe("Aktionen", () => {
+  it("meldet angenommene und abgelehnte Aktionen sofort", () => {
     const { match } = twoExternal();
-    const answer = arena.submitOrders(match, 0, 0, [
-      { from: 0, to: 2, ships: 10 },
-      { from: 1, to: 2, ships: 10 },
-    ]);
+    const good = firstMove(match, 0);
+    const answer = arena.submitOrders(match, 0, 1, [good, firstMove(match, 1)]);
     expect(answer.accepted).toBe(1);
-    expect(answer.rejected).toEqual([expect.objectContaining({ index: 1, code: "not_owner" })]);
+    expect(answer.results).toEqual([
+      { action: good, ok: true },
+      { action: firstMove(match, 1), ok: false, code: "not_owner" },
+    ]);
     expect(arena.playerState(match, 0).submitted).toBe(true);
     expect(arena.playerState(match, 1).submitted).toBe(false);
   });
 
-  it("nimmt je Tick nur die erste Einreichung und keine für alte Ticks", () => {
+  it("nimmt je Runde nur die erste Einreichung und keine für andere Runden", () => {
     const { match } = twoExternal();
-    arena.submitOrders(match, 0, 0, []);
-    expect(code(() => arena.submitOrders(match, 0, 0, []))).toBe("already_submitted");
-    expect(code(() => arena.submitOrders(match, 1, 3, []))).toBe("stale_tick");
-    expect(code(() => arena.submitOrders(match, 1, "0", []))).toBe("bad_request");
-    expect(code(() => arena.submitOrders(match, 1, 0, { from: 1 }))).toBe("bad_request");
+    arena.submitOrders(match, 0, 1, []);
+    expect(code(() => arena.submitOrders(match, 0, 1, []))).toBe("already_submitted");
+    expect(code(() => arena.submitOrders(match, 1, 0, []))).toBe("stale_round");
+    expect(code(() => arena.submitOrders(match, 1, 3, []))).toBe("stale_round");
+    expect(code(() => arena.submitOrders(match, 1, "1", []))).toBe("bad_request");
+    expect(code(() => arena.submitOrders(match, 1, 1, { from: 1 }))).toBe("bad_request");
   });
 
   it("nimmt nichts an, bevor das Match läuft oder nachdem es endet", () => {
     const match = arena.createMatch({});
-    expect(code(() => arena.submitOrders(match, 0, 0, []))).toBe("match_not_running");
+    expect(code(() => arena.submitOrders(match, 0, 1, []))).toBe("match_not_running");
     const { match: other } = twoExternal();
     arena.abort(other.id);
-    expect(code(() => arena.submitOrders(other, 0, 0, []))).toBe("match_not_running");
+    expect(code(() => arena.submitOrders(other, 0, 1, []))).toBe("match_not_running");
   });
 
-  it("zeigt dem Bot Stand, Frist und alle Flotten", () => {
+  it("zeigt dem Bot Stand, Frist, Regeln und alle Flotten", () => {
     const { match } = twoExternal();
-    arena.submitOrders(match, 0, 0, [{ from: 0, to: 2, ships: 10 }]);
-    arena.submitOrders(match, 1, 0, []);
+    const sent = firstMove(match, 0);
+    arena.submitOrders(match, 0, 1, [sent]);
+    arena.submitOrders(match, 1, 1, []);
     vi.advanceTimersByTime(100);
     const state = arena.playerState(match, 1);
-    expect(state.you).toBe(1);
-    expect(state.tick).toBe(1);
-    expect(state.deadlineMs).toBe(1000);
-    expect(state.planets).toHaveLength(24);
-    expect(state.planets[0]).toMatchObject({ id: 0, owner: 0, ships: 95, growth: 5 });
-    expect(state.fleets).toEqual([expect.objectContaining({ owner: 0, from: 0, to: 2, ships: 10, depart: 0 })]);
+    expect(state).toMatchObject({ you: 1, round: 2, rounds: 50, deadlineMs: 1000, rules: RULES, actions: { limit: 3 }, score: [4, 4] });
+    expect(state.planets).toHaveLength(15);
+    expect(state.planets[0]).toMatchObject({ id: 0, home: 0, owner: 0, ships: 24, growth: 4 });
+    expect(typeof state.planets[0].name).toBe("string");
+    expect(state.routes).toEqual(match.map.routes);
+    expect(state.fleets).toEqual([expect.objectContaining({ owner: 0, from: 0, to: sent.to, ships: 10, progress: 0 })]);
     expect(state.match.status).toBe("running");
   });
 });
 
 describe("Warten", () => {
-  it("kehrt zurück, sobald der nächste Tick da ist", async () => {
+  it("kehrt zurück, sobald die nächste Runde da ist", async () => {
     const { match } = twoExternal();
     let done: boolean | null = null;
-    void arena.wait(match, () => match.state.tick > 0, 25_000).then((value) => (done = value));
+    void arena.wait(match, () => match.state.round > 0, 25_000).then((value) => (done = value));
     await vi.advanceTimersByTimeAsync(10);
     expect(done).toBeNull();
-    arena.submitOrders(match, 0, 0, []);
-    arena.submitOrders(match, 1, 0, []);
+    arena.submitOrders(match, 0, 1, []);
+    arena.submitOrders(match, 1, 1, []);
     await vi.advanceTimersByTimeAsync(100);
     expect(done).toBe(true);
     expect(match.waiters.size).toBe(0);
@@ -358,14 +398,14 @@ describe("Verwaltung", () => {
     arena.abort(match.id);
     expect(code(() => arena.abort(match.id))).toBe("already_over");
     vi.advanceTimersByTime(10_000);
-    expect(match.state.tick).toBe(0);
+    expect(match.state.round).toBe(0);
   });
 
   it("meldet das Ende eines Matches an Zuhörer", () => {
     const ended: string[] = [];
     arena.onMatchEnd((match) => ended.push(`${match.id}:${match.status}`));
-    const match = arena.createMatch({ demo: true, options: { seed: 2026, tickMs: 50 } });
-    vi.advanceTimersByTime(300 * 50);
+    const match = arena.createMatch({ demo: true, options: { seed: 2026, roundMs: 100 } });
+    vi.advanceTimersByTime(120 * 100);
     expect(ended).toEqual([`${match.id}:finished`]);
   });
 
@@ -373,7 +413,11 @@ describe("Verwaltung", () => {
     const health = arena.health();
     expect(health.ok).toBe(true);
     expect(health.bootId).toHaveLength(12);
-    expect(health.bots.map((bot) => bot.id)).toContain("expansion");
+    expect(health.bots.map((bot) => bot.id)).toEqual(["standard", "sturm", "passiv"]);
+    expect(health.rules).toBe(RULES);
+    expect(health.params.home.guard).toBe(15);
+    expect(health.presets).toEqual({ turnier: { roundMs: 8000, timeoutMs: 5000 }, test: { roundMs: 100, timeoutMs: 2000 } });
+    expect(health.limits.planets).toEqual([15, 17]);
     expect(health.limits.maxWaitSeconds).toBe(25);
     expect(new Arena().bootId).not.toBe(health.bootId);
   });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { generateMap } from "@/lib/planetwars";
+import { generateMap } from "@/lib/game";
 import { ARENA_LIMITS, Arena } from "./arena";
 import { ArenaError } from "./errors";
 import { SERIES_LIMITS, SeriesManager } from "./series";
@@ -30,14 +30,14 @@ function code(run: () => unknown): string {
   return "kein Fehler";
 }
 
-const FAST = { tickMs: 50, tickLimit: 300, seed: 100 };
+const FAST = { roundMs: 100, rounds: 120, seed: 100 };
 /** Lässt ein Spiel sicher zu Ende laufen. */
-const GAME_MS = 300 * 50 + 10;
+const GAME_MS = 120 * 100 + 10;
 
 /** Spult in kleinen Schritten vor, bis das laufende Spiel der Serie vorbei ist. */
 function finishCurrentGame(series: { games: { matchId: string }[] }) {
   const match = arena.getMatch(series.games.at(-1)!.matchId);
-  for (let step = 0; step < 400 && match.status === "running"; step++) vi.advanceTimersByTime(50);
+  for (let step = 0; step < 400 && match.status === "running"; step++) vi.advanceTimersByTime(100);
   expect(match.status).toBe("finished");
 }
 
@@ -45,7 +45,7 @@ describe("Serie zwischen eingebauten Bots", () => {
   it("endet vorzeitig, sobald einer die Mehrheit der Spiele hat", () => {
     const series = manager.create({
       bestOf: 3,
-      players: [{ type: "bot", bot: "expansion" }, { type: "bot", bot: "passiv" }],
+      players: [{ type: "bot", bot: "standard" }, { type: "bot", bot: "passiv" }],
       options: FAST,
       label: "Test",
     });
@@ -77,7 +77,7 @@ describe("Serie zwischen eingebauten Bots", () => {
   it("wechselt die Sitze und nimmt je Spiel eine neue Karte", () => {
     const series = manager.create({
       bestOf: 3,
-      players: [{ type: "bot", bot: "expansion" }, { type: "bot", bot: "passiv" }],
+      players: [{ type: "bot", bot: "standard" }, { type: "bot", bot: "passiv" }],
       options: FAST,
       label: "Finale",
     });
@@ -90,14 +90,14 @@ describe("Serie zwischen eingebauten Bots", () => {
     ]);
     expect(first.options.seed).toBe(100);
     expect(second.options.seed).toBe(101);
-    expect(second.map).toEqual(generateMap({ seed: 101, planets: 24 }));
-    expect(arena.info(first).players.map((player) => player.name)).toEqual(["Expansion", "Passiv"]);
-    expect(arena.info(second).players.map((player) => player.name)).toEqual(["Passiv", "Expansion"]);
+    expect(second.map).toEqual(generateMap({ seed: 101, planets: 15 }));
+    expect(arena.info(first).players.map((player) => player.name)).toEqual(["Standard", "Passiv"]);
+    expect(arena.info(second).players.map((player) => player.name)).toEqual(["Passiv", "Standard"]);
     expect(arena.info(second).series).toEqual({ id: series.id, game: 2 });
     expect(arena.info(second).label).toBe("Finale · Spiel 2");
 
     finishCurrentGame(series);
-    // Im zweiten Spiel sitzt "expansion" auf Sitz 1 und gewinnt dort: der Sieg zählt für Teilnehmer 0.
+    // Im zweiten Spiel sitzt "standard" auf Sitz 1 und gewinnt dort: der Sieg zählt für Teilnehmer 0.
     expect(second.result?.winner).toBe(1);
     expect(manager.info(series).games[1].winner).toBe(0);
   });
@@ -106,15 +106,15 @@ describe("Serie zwischen eingebauten Bots", () => {
     const series = manager.create({
       bestOf: 1,
       players: [{ type: "bot", bot: "passiv" }, { type: "bot", bot: "passiv" }],
-      options: { ...FAST, tickLimit: 20 },
+      options: { ...FAST, rounds: 20 },
     });
-    vi.advanceTimersByTime(20 * 50 + 10);
+    vi.advanceTimersByTime(20 * 100 + 10);
     expect(manager.info(series)).toMatchObject({ status: "finished", wins: [0, 0], draws: 1, winner: null });
   });
 
   it("spielt bei Unentschieden alle Spiele und entscheidet dann nach Siegen", () => {
-    const series = manager.create({ bestOf: 3, demo: true, options: { ...FAST, tickLimit: 20 } });
-    for (let game = 0; game < 3; game++) vi.advanceTimersByTime(20 * 50 + 10 + SERIES_LIMITS.pauseMs);
+    const series = manager.create({ bestOf: 3, demo: true, options: { ...FAST, rounds: 20 } });
+    for (let game = 0; game < 3; game++) vi.advanceTimersByTime(20 * 100 + 10 + SERIES_LIMITS.pauseMs);
     const info = manager.info(series);
     expect(info.status).toBe("finished");
     expect(info.games.length).toBeLessThanOrEqual(3);
@@ -130,7 +130,7 @@ describe("Serie zwischen eingebauten Bots", () => {
 
 describe("Serie mit externen Bots", () => {
   function joined() {
-    const series = manager.create({ bestOf: 3, options: { ...FAST, timeoutMs: 1000, tickLimit: 20 } });
+    const series = manager.create({ bestOf: 3, options: { ...FAST, timeoutMs: 1000, rounds: 20 } });
     const a = manager.join(series.id, "Alpha");
     const b = manager.join(series.id, "Beta");
     return { series, a, b };
@@ -160,8 +160,8 @@ describe("Serie mit externen Bots", () => {
     expect(manager.authenticate(series.id, a.token).slot).toBe(0);
     expect(code(() => manager.authenticate(series.id, "falsch"))).toBe("unauthorized");
 
-    // Niemand reicht ein: das Spiel läuft über Fristen bis zum Tick-Limit und endet unentschieden.
-    vi.advanceTimersByTime(ARENA_LIMITS.firstTickGraceMs + 5 * 1000 + 20 * 50);
+    // Niemand reicht ein: das Spiel läuft über Fristen bis zur letzten Runde und endet unentschieden.
+    vi.advanceTimersByTime(ARENA_LIMITS.firstRoundGraceMs + 5 * 1000 + 20 * 100);
     expect(arena.getMatch(first).status).toBe("finished");
     vi.advanceTimersByTime(SERIES_LIMITS.pauseMs);
     const second = series.games[1].matchId;
@@ -181,7 +181,7 @@ describe("Serie mit externen Bots", () => {
         return current !== null && current.matchId !== first;
       }, 60_000)
       .then(() => (woke = true));
-    await vi.advanceTimersByTimeAsync(ARENA_LIMITS.firstTickGraceMs + 5 * 1000 + 20 * 50);
+    await vi.advanceTimersByTimeAsync(ARENA_LIMITS.firstRoundGraceMs + 5 * 1000 + 20 * 100);
     expect(woke).toBe(false);
     await vi.advanceTimersByTimeAsync(SERIES_LIMITS.pauseMs);
     expect(woke).toBe(true);
@@ -208,7 +208,7 @@ describe("Serie mit externen Bots", () => {
   });
 
   it("versucht es erneut, wenn die Arena gerade voll ist", () => {
-    for (let i = 0; i < ARENA_LIMITS.maxRunningMatches; i++) arena.createMatch({ demo: true, options: { tickMs: 50, seed: i } });
+    for (let i = 0; i < ARENA_LIMITS.maxRunningMatches; i++) arena.createMatch({ demo: true, options: { roundMs: 100, seed: i } });
     const series = manager.create({ bestOf: 1, demo: true, options: FAST });
     expect(series.games).toHaveLength(0);
     expect(series.status).toBe("waiting");

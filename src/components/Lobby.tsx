@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { HealthResponse, MatchInfo, MatchOptions, PlayerSpec, SeriesInfo } from "@/lib/arena/api-types";
+import type { HealthResponse, MatchInfo, MatchOptions, PlayerSpec, SeriesInfo } from "@/lib/arena/api-types-v2";
 import {
   ApiError,
   createMatch,
@@ -98,6 +98,22 @@ const MODES: { id: Mode; label: string; hint: string }[] = [
   { id: "bo5", label: "Best of 5", hint: "Wer zuerst drei Spiele gewinnt. Sitze und Karte wechseln je Spiel." },
 ];
 
+type Tempo = "turnier" | "zuegig" | "test";
+
+/** Takt und Frist je Tempo. „Turnier" und „Test" gibt der Server vor, „Zügig" liegt dazwischen und ist zum Zuschauen gedacht. */
+function tempoOptions(health: HealthResponse, tempo: Tempo): Pick<MatchOptions, "roundMs" | "timeoutMs"> {
+  if (tempo === "zuegig") return { roundMs: 2000, timeoutMs: 2000 };
+  return health.presets[tempo];
+}
+
+const TEMPOS: { id: Tempo; label: string; hint: string }[] = [
+  { id: "turnier", label: "Turnier", hint: "Der Takt für das Turnier, mit Zeit zum Mitlesen." },
+  { id: "zuegig", label: "Zügig", hint: "Zum Zuschauen und Vorführen." },
+  { id: "test", label: "Test", hint: "So schnell die Bots antworten. Zum Testen, kaum zum Zuschauen." },
+];
+
+const seconds = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
+
 const FIELD = "h-5 w-full min-w-0 border border-line bg-space px-1";
 
 function NumberField({
@@ -141,6 +157,12 @@ function NumberField({
   );
 }
 
+/** Dauer in Worten: unter zwei Minuten in Sekunden, sonst in Minuten. */
+function formatDuration(ms: number): string {
+  const total = Math.round(ms / 1000);
+  return total < 120 ? `${total} Sekunden` : `${Math.round(total / 60)} Minuten`;
+}
+
 function explain(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401 || error.status === 403) {
@@ -157,16 +179,21 @@ function CreatePanel({ health, seriesSupported }: { health: HealthResponse; seri
   const [mode, setMode] = useState<Mode>("match");
   const [players, setPlayers] = useState<[string, string]>([OPEN, OPEN]);
   const [label, setLabel] = useState("");
-  const [options, setOptions] = useState({ seed: "", planets: "", tickLimit: "", tickMs: "", timeoutMs: "" });
+  const [tempo, setTempo] = useState<Tempo>("turnier");
+  const [options, setOptions] = useState({ seed: "", planets: "", rounds: "", roundMs: "", timeoutMs: "" });
   const [key, setKey] = useState(() => getArenaKey());
   const [busy, setBusy] = useState<"create" | "demo" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const set = (name: keyof typeof options) => (value: string) => setOptions((now) => ({ ...now, [name]: value }));
   const external = players.filter((player) => player === OPEN).length;
+  const numberOr = (text: string, fallback: number) => (text.trim() !== "" && Number.isFinite(Number(text)) ? Number(text) : fallback);
+  const rounds = numberOr(options.rounds, health.defaults.rounds);
+  const roundMs = numberOr(options.roundMs, tempoOptions(health, tempo).roundMs);
 
+  /** Takt und Frist gehen immer mit: ohne Angabe nähme der Server den Turniertakt. */
   function chosenOptions(): Partial<MatchOptions> {
-    const result: Partial<MatchOptions> = {};
+    const result: Partial<MatchOptions> = { ...tempoOptions(health, tempo) };
     for (const name of Object.keys(options) as (keyof typeof options)[]) {
       const text = options[name].trim();
       if (text !== "" && Number.isFinite(Number(text))) result[name] = Math.round(Number(text));
@@ -293,6 +320,37 @@ function CreatePanel({ health, seriesSupported }: { health: HealthResponse; seri
           />
         </div>
 
+        <fieldset className="flex flex-col gap-0.5">
+          <legend className="label mb-0.5">Tempo</legend>
+          <div className="grid grid-cols-3 gap-0.5">
+            {TEMPOS.map((entry) => (
+              <label
+                key={entry.id}
+                className={`flex min-h-6 cursor-pointer flex-col items-center justify-center border px-0.5 text-center text-sm has-focus-visible:outline-2 has-focus-visible:outline-ink ${
+                  tempo === entry.id ? "border-ink bg-raised font-semibold" : "border-line hover:border-ink"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="tempo"
+                  value={entry.id}
+                  checked={tempo === entry.id}
+                  onChange={() => setTempo(entry.id)}
+                  className="sr-only"
+                />
+                {entry.label}
+                <span className="tabular text-xs font-normal text-muted">
+                  {seconds.format(tempoOptions(health, entry.id).roundMs / 1000)} s je Runde
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-muted">
+            {TEMPOS.find((entry) => entry.id === tempo)?.hint} Ein Match über {rounds} Runden dauert bis zu{" "}
+            {formatDuration(rounds * Math.max(roundMs, 1))}.
+          </p>
+        </fieldset>
+
         <details className="border border-line">
           <summary className="flex min-h-5 cursor-pointer items-center px-1 text-sm hover:bg-raised">
             Karte, Länge und Takt einstellen
@@ -306,37 +364,50 @@ function CreatePanel({ health, seriesSupported }: { health: HealthResponse; seri
               range={undefined}
               placeholder="Zufall"
             />
+            <div className="flex flex-col">
+              <label htmlFor="feld-planeten" className="label">
+                Planeten
+              </label>
+              <select
+                id="feld-planeten"
+                value={options.planets}
+                onChange={(event) => set("planets")(event.target.value)}
+                className={FIELD}
+              >
+                <option value="">{health.defaults.planets} (Standard)</option>
+                {health.limits.planets
+                  .filter((count) => count !== health.defaults.planets)
+                  .map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+              </select>
+              <span className="text-xs text-muted">Größe der Karte.</span>
+            </div>
             <NumberField
-              label="Planeten"
-              hint="Anzahl."
-              value={options.planets}
-              onChange={set("planets")}
-              range={health.limits.planets}
-              placeholder={String(health.defaults.planets)}
+              label="Runden"
+              hint="Danach entscheiden die Punkte."
+              value={options.rounds}
+              onChange={set("rounds")}
+              range={health.limits.rounds}
+              placeholder={String(health.defaults.rounds)}
             />
             <NumberField
-              label="Tick-Limit"
-              hint="Danach entscheidet die Wertung."
-              value={options.tickLimit}
-              onChange={set("tickLimit")}
-              range={health.limits.tickLimit}
-              placeholder={String(health.defaults.tickLimit)}
+              label="Rundendauer (ms)"
+              hint="Eigener Wert statt des Tempos."
+              value={options.roundMs}
+              onChange={set("roundMs")}
+              range={health.limits.roundMs}
+              placeholder={String(tempoOptions(health, tempo).roundMs)}
             />
             <NumberField
-              label="Tick-Dauer (ms)"
-              hint="Mindestdauer eines Ticks."
-              value={options.tickMs}
-              onChange={set("tickMs")}
-              range={health.limits.tickMs}
-              placeholder={String(health.defaults.tickMs)}
-            />
-            <NumberField
-              label="Frist je Tick (ms)"
+              label="Frist je Runde (ms)"
               hint="Wer später liefert, setzt aus."
               value={options.timeoutMs}
               onChange={set("timeoutMs")}
               range={health.limits.timeoutMs}
-              placeholder={String(health.defaults.timeoutMs)}
+              placeholder={String(tempoOptions(health, tempo).timeoutMs)}
             />
           </div>
         </details>
@@ -381,8 +452,8 @@ function CreatePanel({ health, seriesSupported }: { health: HealthResponse; seri
           {busy === "demo" ? "Demo startet …" : "Demo-Match starten"}
         </button>
         <p className="text-xs text-muted">
-          Zwei eingebaute Bots spielen sofort gegeneinander. Zum Vorführen der Arena, ohne dass ein Bot von außen
-          beitreten muss.
+          Zwei eingebaute Bots spielen sofort gegeneinander, im oben gewählten Tempo. Zum Vorführen der Arena, ohne
+          dass ein Bot von außen beitreten muss.
         </p>
       </div>
 
@@ -467,7 +538,7 @@ function ServerLists({ listing }: { listing: Listing | null }) {
                   {matchChip(match)}
                   <Names names={[match.players[0].name, match.players[1].name]} winner={match.result?.winner ?? null} />
                   <span className="tabular text-muted">
-                    {match.label ? `${match.label} · ` : ""}Tick {match.tick}/{match.tickLimit}
+                    {match.label ? `${match.label} · ` : ""}Runde {match.round}/{match.rounds}
                   </span>
                 </Link>
               </li>
@@ -513,7 +584,7 @@ function LocalReplays() {
               <Link href={`/replay?id=${encodeURIComponent(replay.id)}`} className={ROW}>
                 <StatusChip tone="done">Replay</StatusChip>
                 <Names names={replay.names} winner={replay.winner} />
-                <span className="tabular text-muted">{replay.ticks} Ticks</span>
+                <span className="tabular text-muted">{replay.rounds} Runden</span>
               </Link>
             </li>
           ))}

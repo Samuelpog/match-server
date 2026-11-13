@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReplayResponse } from "@/lib/arena/api-types";
+import type { ReplayResponse } from "@/lib/arena/api-types-v2";
 import { deleteReplay, downloadReplay, listReplays, loadReplay, saveReplay, type ReplaySummary } from "@/lib/client/replay-store";
 import { parseReplayFile } from "@/lib/viewer/adapter";
 import { controllerFromReplay } from "@/lib/viewer/session";
@@ -11,9 +11,9 @@ import { Arena } from "./arena/Arena";
 import { ArenaSkeleton, ConfirmButton, Notice } from "./ui";
 
 const REASONS: Record<string, string> = {
-  elimination: "Auslöschung",
+  home: "Heimatplanet erobert",
+  points: "nach Punkten",
   ships: "mehr Schiffe",
-  growth: "höhere Produktion",
   draw: "unentschieden",
   aborted: "abgebrochen",
 };
@@ -229,7 +229,7 @@ export function ReplayLibrary() {
                   </span>
                   <span className="text-xs text-muted">
                     {replay.winner === null ? "Kein Sieger" : `Sieg ${replay.names[replay.winner]}`} (
-                    {REASONS[replay.reason] ?? replay.reason}) · {replay.ticks} Ticks
+                    {REASONS[replay.reason] ?? replay.reason}) · {replay.rounds} Runden
                     {replay.label ? ` · ${replay.label}` : ""}
                     {replay.series ? ` · Serie ${replay.series.id}, Spiel ${replay.series.game}` : ""} ·{" "}
                     {new Date(replay.savedAt).toLocaleString("de-DE")}

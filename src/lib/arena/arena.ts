@@ -4,24 +4,27 @@ import {
   DEFAULTS,
   DEMO_BOTS,
   LIMITS,
-  checkOrders,
-  fleetsAt,
+  PARAMS,
+  RULES,
+  actionLimit,
+  checkActions,
   frameOf,
   generateMap,
   getBuiltinBot,
   initialFrame,
   initialState,
   outcome,
-  resolveTick,
+  resolveRound,
   runBot,
+  viewFor,
+  type ActionRecord,
   type BuiltinBot,
   type Frame,
   type GameMap,
   type GameResult,
   type GameState,
-  type RejectedOrder,
   type Seat,
-} from "@/lib/planetwars";
+} from "@/lib/game";
 import type {
   CreateMatchRequest,
   HealthResponse,
@@ -32,13 +35,13 @@ import type {
   PlayerSpec,
   PlayerState,
   ReplayResponse,
-} from "./api-types";
+} from "./api-types-v2";
 import { errors } from "./errors";
-import { TIMING_DEFAULTS } from "./replay-file";
+import { PRESETS } from "./replay-file-v2";
 
 export const ARENA_LIMITS = {
-  tickMs: [50, 5000],
-  timeoutMs: [200, 30_000],
+  roundMs: [100, 10_000],
+  timeoutMs: [500, 30_000],
   /** Längste Wartezeit für `?wait=`, in Sekunden. */
   maxWaitSeconds: 25,
   maxRunningMatches: 8,
@@ -48,8 +51,8 @@ export const ARENA_LIMITS = {
   maxWaitingMatches: 40,
   /** Ein Match, dem so lange niemand beitritt, wird abgebrochen. */
   waitingTtlMs: 30 * 60_000,
-  /** Der erste Tick hat mindestens diese Frist, damit Bots in Ruhe starten können. */
-  firstTickGraceMs: 5000,
+  /** Die erste Runde hat mindestens diese Frist, damit Bots in Ruhe starten können. */
+  firstRoundGraceMs: 5000,
   /** Nach so vielen verpassten Fristen in Folge wird auf einen Bot nicht mehr gewartet. */
   absentAfterMissed: 5,
   onlineWindowMs: 30_000,
@@ -100,12 +103,17 @@ export function normalizeOptions(input: unknown): MatchOptions {
   const raw = (input ?? {}) as Record<string, unknown>;
   const options: MatchOptions = {
     seed: intOption("seed", raw.seed, randomInt(0x1_0000_0000), [0, 0xffffffff]),
-    planets: intOption("planets", raw.planets, DEFAULTS.planets, [LIMITS.minPlanets, LIMITS.maxPlanets]),
-    tickLimit: intOption("tickLimit", raw.tickLimit, DEFAULTS.tickLimit, [LIMITS.minTickLimit, LIMITS.maxTickLimit]),
-    tickMs: intOption("tickMs", raw.tickMs, TIMING_DEFAULTS.tickMs, ARENA_LIMITS.tickMs),
-    timeoutMs: intOption("timeoutMs", raw.timeoutMs, TIMING_DEFAULTS.timeoutMs, ARENA_LIMITS.timeoutMs),
+    planets: intOption("planets", raw.planets, DEFAULTS.planets, [0, 99]),
+    rounds: intOption("rounds", raw.rounds, DEFAULTS.rounds, [LIMITS.minRounds, LIMITS.maxRounds]),
+    roundMs: intOption("roundMs", raw.roundMs, PRESETS.turnier.roundMs, ARENA_LIMITS.roundMs),
+    timeoutMs: intOption("timeoutMs", raw.timeoutMs, PRESETS.turnier.timeoutMs, ARENA_LIMITS.timeoutMs),
   };
-  if (options.timeoutMs < options.tickMs) options.timeoutMs = options.tickMs;
+  if (!(LIMITS.planetCounts as readonly number[]).includes(options.planets)) {
+    throw errors.badRequest(`"planets" muss ${LIMITS.planetCounts.join(" oder ")} sein.`);
+  }
+  for (const old of ["tickLimit", "tickMs"]) {
+    if (raw[old] !== undefined) throw errors.badRequest(`"${old}" gibt es nicht mehr. Die Optionen heißen jetzt "rounds" und "roundMs".`);
+  }
   return options;
 }
 
@@ -147,7 +155,7 @@ interface SeatRuntime {
   /** Verpasste Fristen in Folge. */
   missed: number;
   absent: boolean;
-  /** Für den laufenden Tick eingereichte Befehle, `null` solange nichts kam. */
+  /** Für die laufende Runde eingereichte Aktionen, `null` solange nichts kam. */
   pending: unknown[] | null;
 }
 
@@ -166,9 +174,9 @@ export interface MatchRuntime {
   createdAt: number;
   startedAt: number | null;
   finishedAt: number | null;
-  /** Zeitpunkt, zu dem der laufende Tick veröffentlicht wurde. */
-  tickStartedAt: number;
-  /** Frist des laufenden Ticks. */
+  /** Beginn der laufenden Runde. */
+  roundStartedAt: number;
+  /** Frist der laufenden Runde. Danach wird für sie nichts mehr angenommen. */
   deadlineAt: number;
   timer: ReturnType<typeof setTimeout> | null;
   waiters: Set<() => void>;
@@ -251,7 +259,7 @@ export class Arena {
       options,
       map,
       state,
-      frames: [initialFrame(map, state)],
+      frames: [initialFrame(map, state, [actionLimit(state, 0), actionLimit(state, 1)])],
       seats: [seat(input.seats[0]), seat(input.seats[1])],
       result: null,
       series: input.series ?? null,
@@ -259,7 +267,7 @@ export class Arena {
       createdAt: now,
       startedAt: null,
       finishedAt: null,
-      tickStartedAt: now,
+      roundStartedAt: now,
       deadlineAt: now,
       timer: null,
       waiters: new Set(),
@@ -314,9 +322,11 @@ export class Arena {
       id: match.id,
       status: match.status,
       version: match.version,
-      tick: match.state.tick,
-      tickLimit: match.options.tickLimit,
-      tickMs: match.options.tickMs,
+      rules: RULES,
+      params: PARAMS,
+      round: match.state.round,
+      rounds: match.options.rounds,
+      roundMs: match.options.roundMs,
       timeoutMs: match.options.timeoutMs,
       seed: match.options.seed,
       players: [player(0), player(1)],
@@ -333,7 +343,7 @@ export class Arena {
     const frames = match.frames.slice(Math.max(0, from));
     return {
       format: "planetwars-replay",
-      version: 1,
+      version: 2,
       match: this.info(match),
       map: match.map,
       frames,
@@ -344,18 +354,10 @@ export class Arena {
   playerState(match: MatchRuntime, seat: Seat): PlayerState {
     const running = match.status === "running";
     return {
+      ...viewFor(match.map, match.state, seat, match.options.rounds),
       match: this.info(match),
-      you: seat,
-      tick: match.state.tick,
       deadlineMs: running ? Math.max(0, match.deadlineAt - Date.now()) : null,
       submitted: running && match.seats[seat].pending !== null,
-      speed: match.map.speed,
-      planets: match.map.planets.map((planet) => ({
-        ...planet,
-        owner: match.state.planets[planet.id][0],
-        ships: match.state.planets[planet.id][1],
-      })),
-      fleets: match.state.fleets,
     };
   }
 
@@ -399,25 +401,29 @@ export class Arena {
   submitOrders(
     match: MatchRuntime,
     seat: Seat,
-    tick: unknown,
-    orders: unknown,
-  ): { tick: number; accepted: number; rejected: RejectedOrder[] } {
+    round: unknown,
+    actions: unknown,
+  ): { round: number; accepted: number; results: ActionRecord[] } {
     if (match.status !== "running") throw errors.notRunning(match.status);
-    if (typeof tick !== "number" || !Number.isInteger(tick)) throw errors.badRequest('"tick" muss eine ganze Zahl sein.');
-    if (!Array.isArray(orders)) throw errors.badRequest('"orders" muss eine Liste sein, notfalls eine leere.');
-    if (tick !== match.state.tick) throw errors.staleTick(tick, match.state.tick);
+    if (typeof round !== "number" || !Number.isInteger(round)) {
+      throw errors.badRequest('"round" muss eine ganze Zahl sein. Der Body hat die Form {"round": Zahl, "actions": [...]}.');
+    }
+    if (!Array.isArray(actions)) throw errors.badRequest('"actions" muss eine Liste sein, notfalls eine leere.');
+    const current = match.state.round + 1;
+    if (round !== current) throw errors.staleRound(round, current);
     const entry = match.seats[seat];
-    if (entry.pending !== null) throw errors.alreadySubmitted(tick);
+    if (entry.pending !== null) throw errors.alreadySubmitted(round);
+    if (Date.now() > match.deadlineAt) throw errors.tooLate(round);
 
-    const checked = checkOrders(match.map, match.state, seat, orders);
-    entry.pending = orders;
+    const results = checkActions(match.map, match.state, seat, actions);
+    entry.pending = actions;
     entry.missed = 0;
     if (entry.absent) {
       entry.absent = false;
       this.touch(match);
     }
     this.schedule(match);
-    return { tick, ...checked };
+    return { round, accepted: results.filter((record) => record.ok).length, results };
   }
 
   abort(id: string): MatchRuntime {
@@ -466,33 +472,37 @@ export class Arena {
   private start(match: MatchRuntime) {
     match.status = "running";
     match.startedAt = Date.now();
-    this.publishTick(match);
+    this.publishRound(match);
     this.touch(match);
   }
 
-  /** Sitze, auf deren Befehle im laufenden Tick gewartet wird. */
+  /** Sitze, auf deren Aktionen in der laufenden Runde gewartet wird. */
   private awaited(match: MatchRuntime): SeatRuntime[] {
     return match.seats.filter((entry) => entry.kind === "external" && !entry.absent);
   }
 
-  private publishTick(match: MatchRuntime) {
+  private publishRound(match: MatchRuntime) {
     const now = Date.now();
-    const { tickMs, timeoutMs } = match.options;
-    match.tickStartedAt = now;
-    const timeout = match.state.tick === 0 ? Math.max(timeoutMs, ARENA_LIMITS.firstTickGraceMs) : timeoutMs;
-    match.deadlineAt = now + (this.awaited(match).length > 0 ? timeout : tickMs);
+    const { roundMs, timeoutMs } = match.options;
+    match.roundStartedAt = now;
+    const timeout = match.state.round === 0 ? Math.max(timeoutMs, ARENA_LIMITS.firstRoundGraceMs) : timeoutMs;
+    match.deadlineAt = now + (this.awaited(match).length > 0 ? timeout : roundMs);
     for (const entry of match.seats) entry.pending = null;
     this.schedule(match);
   }
 
-  /** Stellt den Timer auf den Moment, in dem der laufende Tick aufgelöst werden soll. */
+  /**
+   * Stellt den Timer auf den Moment, in dem die laufende Runde aufgelöst wird:
+   * sobald alle eingereicht haben oder die Frist vorbei ist, frühestens aber
+   * nach `roundMs`.
+   */
   private schedule(match: MatchRuntime) {
     if (match.timer) clearTimeout(match.timer);
     match.timer = null;
     if (match.status !== "running") return;
-    const earliest = match.tickStartedAt + match.options.tickMs;
+    const earliest = match.roundStartedAt + match.options.roundMs;
     const everyoneIn = this.awaited(match).every((entry) => entry.pending !== null);
-    const due = everyoneIn ? earliest : match.deadlineAt;
+    const due = everyoneIn ? earliest : Math.max(earliest, match.deadlineAt);
     const delay = Math.max(0, due - Date.now());
     match.timer = setTimeout(() => this.resolve(match), delay);
     match.timer.unref?.();
@@ -503,8 +513,8 @@ export class Arena {
     if (match.status !== "running") return;
     const { map, state, options } = match;
     const submitted: [boolean, boolean] = [true, true];
-    const orders = match.seats.map((entry, index) => {
-      if (entry.bot) return runBot(entry.bot.play, { map, state, you: index as Seat, tickLimit: options.tickLimit });
+    const actions = match.seats.map((entry, index) => {
+      if (entry.bot) return runBot(entry.bot.play, viewFor(map, state, index as Seat, options.rounds));
       if (entry.pending !== null) return entry.pending;
       submitted[index] = false;
       entry.missed += 1;
@@ -512,16 +522,16 @@ export class Arena {
       return [];
     }) as [unknown, unknown];
 
-    const step = resolveTick(map, state, orders);
+    const step = resolveRound(map, state, actions);
     match.state = step.state;
     match.frames.push(frameOf(map, step, submitted, Date.now() - (match.startedAt ?? Date.now())));
 
-    const result = outcome(map, match.state, options.tickLimit);
+    const result = outcome(map, match.state, options.rounds);
     if (result) {
       this.end(match, "finished", result);
       return;
     }
-    this.publishTick(match);
+    this.publishRound(match);
     this.touch(match);
   }
 
@@ -569,17 +579,20 @@ export class Arena {
       startedAt: this.startedAt,
       arenaKeyRequired: Boolean(process.env.ARENA_KEY),
       bots: BUILTIN_BOTS.map(({ id, name, description }) => ({ id, name, description })),
+      rules: RULES,
+      params: PARAMS,
       defaults: {
         seed: 0,
         planets: DEFAULTS.planets,
-        tickLimit: DEFAULTS.tickLimit,
-        tickMs: TIMING_DEFAULTS.tickMs,
-        timeoutMs: TIMING_DEFAULTS.timeoutMs,
+        rounds: DEFAULTS.rounds,
+        roundMs: PRESETS.turnier.roundMs,
+        timeoutMs: PRESETS.turnier.timeoutMs,
       },
+      presets: { turnier: { ...PRESETS.turnier }, test: { ...PRESETS.test } },
       limits: {
-        planets: [LIMITS.minPlanets, LIMITS.maxPlanets],
-        tickLimit: [LIMITS.minTickLimit, LIMITS.maxTickLimit],
-        tickMs: [ARENA_LIMITS.tickMs[0], ARENA_LIMITS.tickMs[1]],
+        planets: [...LIMITS.planetCounts],
+        rounds: [LIMITS.minRounds, LIMITS.maxRounds],
+        roundMs: [ARENA_LIMITS.roundMs[0], ARENA_LIMITS.roundMs[1]],
         timeoutMs: [ARENA_LIMITS.timeoutMs[0], ARENA_LIMITS.timeoutMs[1]],
         maxWaitSeconds: ARENA_LIMITS.maxWaitSeconds,
         maxRunningMatches: ARENA_LIMITS.maxRunningMatches,
@@ -587,11 +600,6 @@ export class Arena {
       running: this.runningCount(),
     };
   }
-}
-
-/** Alle Flotten im Flug zu einem Tick, aus den Frames eines Matches. Für Auswertungen. */
-export function fleetsOf(match: MatchRuntime, tick: number) {
-  return fleetsAt(match.frames, tick);
 }
 
 const GLOBAL_KEY = Symbol.for("planetwars.arena");

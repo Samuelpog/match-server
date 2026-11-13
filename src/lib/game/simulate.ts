@@ -1,14 +1,14 @@
 import { runBot } from "./bots";
-import { initialState, outcome, resolveTick } from "./engine";
+import { actionLimit, initialState, outcome, resolveRound, viewFor } from "./engine";
 import { frameOf, initialFrame } from "./frames";
 import { DEFAULTS, type BotFunction, type Frame, type GameMap, type GameResult, type GameState } from "./types";
 
 export interface SimulateOptions {
   map: GameMap;
   bots: [BotFunction, BotFunction];
-  tickLimit?: number;
+  rounds?: number;
   /** Abstand der Frames in `at`, als wäre das Match in diesem Takt gelaufen. */
-  tickMs?: number;
+  roundMs?: number;
 }
 
 export interface Simulation {
@@ -23,19 +23,19 @@ export interface Simulation {
  */
 export function simulate(options: SimulateOptions): Simulation {
   const { map, bots } = options;
-  const tickLimit = options.tickLimit ?? DEFAULTS.tickLimit;
-  const tickMs = options.tickMs ?? 300;
+  const rounds = options.rounds ?? DEFAULTS.rounds;
+  const roundMs = options.roundMs ?? 8000;
   let state = initialState(map);
-  const frames: Frame[] = [initialFrame(map, state)];
+  const frames: Frame[] = [initialFrame(map, state, [actionLimit(state, 0), actionLimit(state, 1)])];
   for (;;) {
-    const result = outcome(map, state, tickLimit);
+    const result = outcome(map, state, rounds);
     if (result) return { frames, result, state };
-    const orders: [unknown, unknown] = [
-      runBot(bots[0], { map, state, you: 0, tickLimit }),
-      runBot(bots[1], { map, state, you: 1, tickLimit }),
+    const input: [unknown, unknown] = [
+      runBot(bots[0], viewFor(map, state, 0, rounds)),
+      runBot(bots[1], viewFor(map, state, 1, rounds)),
     ];
-    const step = resolveTick(map, state, orders);
+    const step = resolveRound(map, state, input);
     state = step.state;
-    frames.push(frameOf(map, step, [true, true], state.tick * tickMs));
+    frames.push(frameOf(map, step, [true, true], state.round * roundMs));
   }
 }

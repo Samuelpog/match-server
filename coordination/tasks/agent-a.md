@@ -12,4 +12,10 @@
 | M2 | Arena und Endpunkte für Matches, Beispiel-Bot | erledigt |
 | M3 | Serien (`ARENA_KEY` ist mit M2 erledigt) | erledigt |
 | M4 | Rest des alten Gerüsts entfernen (`src/lib/match/`, `@upstash/redis`), UI von B gemergt und im Browser geprüft | erledigt |
-| M5 | Bot-Protokoll von beiden Umgebungen gegen Render messen, inklusive Aufwachen | wartet auf Merge nach `main` |
+| M5 | Bot-Protokoll von meiner Umgebung gegen Render gemessen (`a-0014`) | erledigt |
+| M6 | Aufwachen aus dem Schlafmodus gemessen: 22,8 s (`a-0016`) | erledigt |
+| R0 | Vorschlag Rundenstrategie bewerten, mit Agent-B abstimmen, Umsetzung planen (`a-0017`, Ergebnis in `decisions/a-0003`) | erledigt, wartet auf Menschen |
+| R1 | Nach Freigabe: `a-0004-regeln-v2` (Regeln mit Startwerten, Schnittstelle, Frame-Format) | erledigt, angenommen |
+| R2 | Stufe 1: `src/lib/game/**`, Beispiel-Replay, Arena und Endpunkte, Bots, Simulator, Bot-Vorlage, `docs/API.md` (`a-0025`, `a-0026`) | erledigt |
+| R3 | Abschluss Stufe 1: `api-types.ts` auf v2 verweisen, `src/lib/planetwars/**` löschen | erledigt (`a-0027`) |
+| R4 | Verfehlte Kriterien (frühes Ende, Führungswechsel) den Menschen vorlegen | offen |

@@ -1,17 +1,24 @@
 import { ReplayBuffer } from "./buffer";
 import { isOver, type ArenaMap, type Frame, type MatchMeta } from "./model";
 
-export const SPEEDS = [0.25, 0.5, 1, 2, 4, 8] as const;
+export const SPEEDS = [0.5, 1, 2, 4, 8, 16] as const;
 
-/** Tick-Dauer, falls der Server keine nennt. */
-const DEFAULT_TICK_MS = 400;
+/**
+ * Dauer einer Runde beim Abspielen mit Tempo 1. Ein Replay läuft in diesem
+ * festen Schautempo, egal wie schnell das Match gespielt wurde.
+ */
+export const VIEW_ROUND_MS = 3000;
+/** Länger dauert die Auflösung einer Runde auch live nicht. Danach steht das Bild, bis die nächste Runde kommt. */
+const MAX_LIVE_ROUND_MS = 4500;
 /** Ab diesem Rückstand springt die Live-Ansicht, statt aufzuholen. */
 const SNAP_LAG = 6;
 
 export interface PlaybackState {
-  /** Ganzer Tick unter dem Abspielkopf. */
-  tick: number;
-  lastTick: number;
+  /** Letzte vollständig gezeigte Runde: der Stand unter dem Abspielkopf. */
+  round: number;
+  /** Die Runde, deren Auflösung gerade läuft. Gleich `round`, wenn das Bild steht. */
+  showing: number;
+  lastRound: number;
   playing: boolean;
   /** Der Abspielkopf folgt dem neuesten Frame. */
   following: boolean;
@@ -25,12 +32,15 @@ type Listener = () => void;
 /**
  * Hält Daten und Abspielkopf eines Matches zusammen. Die Zeichenfläche fragt
  * in jedem Bild `pos` ab; die Anzeigen drumherum hören auf `subscribe` und
- * werden nur benachrichtigt, wenn sich für sie etwas ändert (neuer Tick,
+ * werden nur benachrichtigt, wenn sich für sie etwas ändert (neue Runde,
  * neuer Frame, Start, Pause), nicht in jedem Bild.
  */
 export class ArenaController {
   readonly buffer: ReplayBuffer;
-  /** Position des Abspielkopfs in Ticks, mit Nachkommastellen. */
+  /**
+   * Position des Abspielkopfs in Runden. Eine ganze Zahl `r` ist der Stand
+   * nach Runde `r`; dazwischen läuft die Auflösung der Runde `r + 1`.
+   */
   pos = 0;
 
   private metaValue: MatchMeta;
@@ -39,21 +49,19 @@ export class ArenaController {
   private speed = 1;
   private lastNow: number | null = null;
   /** Gemessener Abstand zwischen zwei Frames im laufenden Match. */
-  private liveTickMs: number;
+  private liveRoundMs: number;
   private lastArrival: number | null = null;
   private listeners = new Set<Listener>();
   private frameListeners = new Set<(pos: number) => void>();
   private snapshot: PlaybackState;
   private metaVersion = 0;
-  private paceMs: number | null = null;
-  private paceCount = 0;
 
   constructor(map: ArenaMap, meta: MatchMeta) {
     this.buffer = new ReplayBuffer(map);
     this.metaValue = meta;
     // Ein laufendes Match beginnt live, ein beendetes als Replay von vorn.
     this.following = !isOver(meta.status);
-    this.liveTickMs = meta.tickMs > 0 ? meta.tickMs : DEFAULT_TICK_MS;
+    this.liveRoundMs = meta.roundMs > 0 ? meta.roundMs : VIEW_ROUND_MS;
     this.snapshot = this.compute();
   }
 
@@ -69,25 +77,12 @@ export class ArenaController {
   }
 
   /**
-   * Dauer eines Ticks beim Abspielen mit Tempo 1. Gemessen am echten Verlauf
-   * (`at` der Frames), damit ein Replay so schnell läuft wie das Match selbst.
-   * Der Median hält einzelne lange Fristen aus dem Wert heraus.
+   * Dauer, über die eine Runde gerade gezeigt wird, in Millisekunden. Live
+   * richtet sie sich nach dem Takt des Matches, im Replay nach dem Tempo.
    */
-  get tickMs(): number {
-    const frames = this.buffer.frames;
-    if (this.paceCount !== frames.length && (this.paceCount === 0 || frames.length - this.paceCount >= 20 || this.over)) {
-      this.paceCount = frames.length;
-      const gaps: number[] = [];
-      for (let i = 1; i < frames.length; i++) {
-        const a = frames[i - 1].at;
-        const b = frames[i].at;
-        if (a !== undefined && b !== undefined && b > a) gaps.push(b - a);
-      }
-      gaps.sort((x, y) => x - y);
-      this.paceMs = gaps.length >= 3 ? Math.min(1500, Math.max(60, gaps[gaps.length >> 1])) : null;
-    }
-    if (this.paceMs !== null) return this.paceMs;
-    return this.metaValue.tickMs > 0 ? this.metaValue.tickMs : DEFAULT_TICK_MS;
+  get roundViewMs(): number {
+    if (this.following) return Math.min(MAX_LIVE_ROUND_MS, this.liveRoundMs);
+    return VIEW_ROUND_MS / this.speed;
   }
 
   setMeta(meta: MatchMeta): void {
@@ -96,24 +91,24 @@ export class ArenaController {
     this.emit(true);
   }
 
-  /** Nimmt neue Frames auf. `false`: es fehlt ein Tick, der Aufrufer muss neu holen. */
+  /** Nimmt neue Frames auf. `false`: es fehlt eine Runde, der Aufrufer muss neu holen. */
   append(frames: Frame[], now: number = performance.now()): boolean {
-    const before = this.buffer.lastTick;
+    const before = this.buffer.lastRound;
     for (const frame of frames) {
       if (!this.buffer.append(frame)) return false;
     }
-    const added = this.buffer.lastTick - before;
+    const added = this.buffer.lastRound - before;
     if (added <= 0) return true;
 
     // Nur einzelne, frisch eingetroffene Frames sagen etwas über den Takt.
     if (added === 1 && before >= 0 && this.lastArrival !== null) {
       const interval = now - this.lastArrival;
-      if (interval > 30 && interval < 10_000) this.liveTickMs = this.liveTickMs * 0.7 + interval * 0.3;
+      if (interval > 30 && interval < 15_000) this.liveRoundMs = this.liveRoundMs * 0.6 + interval * 0.4;
     }
     this.lastArrival = now;
 
-    if (this.following && this.buffer.lastTick - this.pos > SNAP_LAG) {
-      this.pos = Math.max(0, this.buffer.lastTick - 1);
+    if (this.following && this.buffer.lastRound - this.pos > SNAP_LAG) {
+      this.pos = Math.max(0, this.buffer.lastRound - 1);
     }
     this.emit(true);
     return true;
@@ -123,7 +118,7 @@ export class ArenaController {
   advance(now: number): void {
     const elapsed = this.lastNow === null ? 0 : Math.min(250, now - this.lastNow);
     this.lastNow = now;
-    const head = this.buffer.lastTick;
+    const head = this.buffer.lastRound;
     if (!this.playing || head < 0 || elapsed <= 0) return;
 
     if (this.following) {
@@ -132,14 +127,14 @@ export class ArenaController {
       const lag = head - this.pos;
       // Etwas schneller, wenn Frames dichter kommen als gedacht, damit kein Rückstand wächst.
       const rate = lag > 2 ? 2 : lag > 1.15 ? 1.2 : 1;
-      this.pos = Math.min(head, this.pos + (elapsed / this.liveTickMs) * rate);
+      this.pos = Math.min(head, this.pos + (elapsed / Math.min(MAX_LIVE_ROUND_MS, this.liveRoundMs)) * rate);
       // Das Match ist zu Ende und der letzte Frame erreicht: es gibt nichts mehr zu verfolgen.
       if (this.over && this.pos >= head) {
         this.playing = false;
         this.following = false;
       }
     } else {
-      this.pos += (elapsed / this.tickMs) * this.speed;
+      this.pos += (elapsed / VIEW_ROUND_MS) * this.speed;
       if (this.pos >= head) {
         this.pos = head;
         if (this.over) this.playing = false;
@@ -152,7 +147,7 @@ export class ArenaController {
   play(): void {
     if (this.playing) return;
     // Am Ende eines beendeten Matches heißt „Abspielen": noch einmal von vorn.
-    if (this.over && this.pos >= this.buffer.lastTick) this.pos = 0;
+    if (this.over && this.pos >= this.buffer.lastRound) this.pos = 0;
     this.playing = true;
     this.lastNow = null;
     this.emit(true);
@@ -172,15 +167,20 @@ export class ArenaController {
 
   /** Springt an eine Position. Verlässt die Live-Verfolgung, das Abspielen läuft weiter wie zuvor. */
   seek(pos: number): void {
-    this.pos = Math.min(Math.max(0, pos), Math.max(0, this.buffer.lastTick));
+    this.pos = Math.min(Math.max(0, pos), Math.max(0, this.buffer.lastRound));
     this.following = false;
     this.emit(true);
   }
 
-  /** Einen Tick vor oder zurück, hält dabei an. */
+  /**
+   * Eine Runde vor oder zurück, hält dabei an. Mitten in einer Auflösung geht
+   * „zurück" an deren Anfang und „vor" an deren Ende.
+   */
   step(delta: number): void {
     this.playing = false;
-    this.seek(Math.floor(this.pos + 1e-6) + delta);
+    const whole = Math.abs(this.pos - Math.round(this.pos)) < 1e-6;
+    const base = whole ? Math.round(this.pos) : delta > 0 ? Math.floor(this.pos) : Math.ceil(this.pos);
+    this.seek(base + delta);
   }
 
   setSpeed(speed: number): void {
@@ -192,7 +192,7 @@ export class ArenaController {
 
   /** Zurück zum neuesten Frame. Bei einem beendeten Match: ans Ende. */
   goLive(): void {
-    const head = Math.max(0, this.buffer.lastTick);
+    const head = Math.max(0, this.buffer.lastRound);
     if (this.over) {
       this.pos = head;
       this.playing = false;
@@ -225,15 +225,17 @@ export class ArenaController {
   getState = (): PlaybackState => this.snapshot;
 
   private compute(): PlaybackState {
-    const lastTick = this.buffer.lastTick;
-    const tick = Math.max(0, Math.min(lastTick, Math.floor(this.pos + 1e-6)));
+    const lastRound = this.buffer.lastRound;
+    const round = Math.max(0, Math.min(lastRound, Math.floor(this.pos + 1e-6)));
+    const showing = Math.max(0, Math.min(lastRound, Math.ceil(this.pos - 1e-6)));
     return {
-      tick,
-      lastTick,
+      round,
+      showing,
+      lastRound,
       playing: this.playing,
       following: this.following,
       speed: this.speed,
-      atEnd: this.over && lastTick >= 0 && this.pos >= lastTick,
+      atEnd: this.over && lastRound >= 0 && this.pos >= lastRound,
     };
   }
 
@@ -242,8 +244,9 @@ export class ArenaController {
     const next = this.compute();
     const previous = this.snapshot;
     const changed =
-      next.tick !== previous.tick ||
-      next.lastTick !== previous.lastTick ||
+      next.round !== previous.round ||
+      next.showing !== previous.showing ||
+      next.lastRound !== previous.lastRound ||
       next.playing !== previous.playing ||
       next.following !== previous.following ||
       next.speed !== previous.speed ||

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ArenaController } from "@/lib/viewer/controller";
-import { isOver, type MatchMeta, type Player, type SeatTick } from "@/lib/viewer/model";
+import { isOver, type Frame, type MatchMeta, type Player } from "@/lib/viewer/model";
 import { number, OWNER_TEXT } from "./format";
 import { OwnerMark } from "./OwnerMark";
 import { useMeta, usePlayback } from "./use-playback";
@@ -11,19 +11,19 @@ function connection(meta: MatchMeta, player: Player): { text: string; tone: stri
   const info = meta.players[player - 1];
   if (!info.joined) return { text: "Noch nicht beigetreten", tone: "text-warn" };
   if (info.builtIn) return { text: "Eingebauter Bot", tone: "text-muted" };
-  if (isOver(meta.status) || info.online === null) return { text: "Externer Bot", tone: "text-muted" };
+  if (isOver(meta.status)) return { text: "Externer Bot", tone: "text-muted" };
   if (info.absent) return { text: "Abwesend, es wird nicht mehr gewartet", tone: "text-danger" };
   if (!info.online) return { text: "Meldet sich nicht", tone: "text-warn" };
   return { text: "Verbunden", tone: "text-ok" };
 }
 
-/** Was der Bot im angezeigten Tick getan hat. */
-function turn(seat: SeatTick | undefined): { text: string; tone: string } | null {
-  if (!seat || seat.onTime === null) return null;
-  if (!seat.onTime) return { text: "Frist verpasst, setzt aus", tone: "text-warn" };
-  if (seat.invalid > 0) {
-    return { text: `${seat.invalid} ${seat.invalid === 1 ? "Befehl" : "Befehle"} abgelehnt`, tone: "text-warn" };
-  }
+/** Was der Bot in der gezeigten Runde getan hat. */
+function turn(frame: Frame | undefined, side: number): { text: string; tone: string } | null {
+  const seat = frame?.seats[side];
+  if (!frame || !seat || seat.submitted === null) return null;
+  if (!seat.submitted) return { text: "Frist verpasst, setzt aus", tone: "text-warn" };
+  const rejected = frame.actions[side].filter((action) => !action.ok).length;
+  if (rejected > 0) return { text: `${rejected} ${rejected === 1 ? "Aktion" : "Aktionen"} abgelehnt`, tone: "text-warn" };
   return { text: "Befehle pünktlich", tone: "text-muted" };
 }
 
@@ -40,13 +40,15 @@ function Figure({ label, value }: { label: string; value: string }) {
 /** Name, Verbindung, Zugstatus und Kennzahlen eines Spielers. */
 export function PlayerPanel({ controller, player }: { controller: ArenaController; player: Player }) {
   const meta = useMeta(controller);
-  const { tick, atEnd } = usePlayback(controller);
+  const { round, showing, atEnd } = usePlayback(controller);
   const side = player - 1;
   const info = meta.players[side];
-  const stats = controller.buffer.stats[tick];
-  const frame = controller.buffer.frames[tick];
+  const seat = controller.buffer.frames[round]?.seats[side];
+  // Aktionen gehören zur Runde, die gerade aufgelöst wird, die übrigen Zahlen zum Stand davor.
+  const acting = controller.buffer.frames[showing];
+  const actions = acting?.seats[side];
   const link = connection(meta, player);
-  const move = turn(frame?.seats?.[side]);
+  const move = turn(acting, side);
   // Den Sieger erst zeigen, wenn der Abspielkopf am Ende steht: ein Replay soll nichts verraten.
   const won = atEnd && meta.result?.winner === player;
   const mirrored = player === 2;
@@ -68,12 +70,12 @@ export function PlayerPanel({ controller, player }: { controller: ArenaControlle
         <span className={`font-semibold ${link.tone}`}>{link.text}</span>
         {move ? <span className={move.tone}>{move.text}</span> : null}
       </p>
-      {stats ? (
+      {seat ? (
         <dl className={`mt-auto grid grid-cols-1 gap-x-2 sm:grid-cols-2 sm:gap-y-1 ${mirrored ? "sm:text-right" : ""}`}>
-          <Figure label="Planeten" value={number.format(stats.planets[side])} />
-          <Figure label="Produktion" value={`+${number.format(stats.production[side])}`} />
-          <Figure label="Auf Planeten" value={number.format(stats.onPlanets[side])} />
-          <Figure label="Im Flug" value={number.format(stats.inFlight[side])} />
+          <Figure label="Planeten" value={number.format(seat.planets)} />
+          <Figure label="Aktionen" value={actions ? `${actions.used} / ${actions.limit}` : "–"} />
+          <Figure label="Schiffe" value={number.format(seat.ships)} />
+          <Figure label="Produktion" value={`+${number.format(seat.production)}`} />
         </dl>
       ) : null}
     </section>

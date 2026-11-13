@@ -1,5 +1,5 @@
-import type { BuiltinBot, Seat } from "@/lib/planetwars";
-import { getBuiltinBot } from "@/lib/planetwars";
+import type { BuiltinBot, Seat } from "@/lib/game";
+import { getBuiltinBot } from "@/lib/game";
 import type {
   CreateSeriesRequest,
   MatchOptions,
@@ -9,7 +9,7 @@ import type {
   SeriesPlayer,
   SeriesPlayerState,
   SeriesStatus,
-} from "./api-types";
+} from "./api-types-v2";
 import {
   ARENA_LIMITS,
   type Arena,

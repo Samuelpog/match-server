@@ -1,278 +1,381 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { replayFile } from "@/lib/arena/replay-file";
-import { DEMO_BOTS, generateMap, getBuiltinBot, simulate } from "@/lib/planetwars";
+import type { ReplayResponse } from "@/lib/arena/api-types-v2";
+import { replayFile } from "@/lib/arena/replay-file-v2";
+import { generateMap, getBuiltinBot, simulate } from "@/lib/game";
 import { parseReplayFile, toFrame, toMap, toMeta } from "./adapter";
-import { ReplayBuffer, share } from "./buffer";
-import { ArenaController } from "./controller";
-import type { ArenaMap, Frame, MatchMeta } from "./model";
+import { neutralPlanets, ReplayBuffer } from "./buffer";
+import { ArenaController, VIEW_ROUND_MS } from "./controller";
+import { defenseOf, share, type Frame, type MatchMeta } from "./model";
+import { phaseOf, TIMING } from "./phases";
+import { controllerFromReplay } from "./session";
 
-const map: ArenaMap = {
-  width: 10,
-  height: 10,
-  planets: [
-    { id: "a", x: 1, y: 1, growth: 2 },
-    { id: "b", x: 9, y: 9, growth: 3 },
-    { id: "c", x: 5, y: 5, growth: 1 },
-  ],
-};
+const fixture = JSON.parse(readFileSync("fixtures/replay-v2-stufe1.json", "utf8")) as ReplayResponse;
 
-function meta(status: MatchMeta["status"]): MatchMeta {
-  return {
-    id: "test",
-    status,
-    tickLimit: 100,
-    tickMs: 100,
-    players: [
-      { name: "Eins", builtIn: false, joined: true, online: true, absent: false },
-      { name: "Zwei", builtIn: false, joined: true, online: true, absent: false },
-    ],
-    result: status === "finished" ? { winner: 1, reason: "ships" } : null,
-    series: null,
-    label: null,
-  };
+/** Ein lokal gespieltes Match im Format des Servers. */
+function played(seed: number, bots: [string, string] = ["standard", "sturm"], planets = 15): ReplayResponse {
+  const map = generateMap({ seed, planets });
+  const [a, b] = bots.map((id) => getBuiltinBot(id)!);
+  const simulation = simulate({ map, bots: [a.play, b.play], rounds: 60 });
+  return replayFile({ id: `test-${seed}`, map, frames: simulation.frames, result: simulation.result, names: [a.name, b.name] });
 }
 
-/** Spieler 1 erobert c, Spieler 2 greift c vergeblich an, Spieler 1 verstärkt c. */
-const frames: Frame[] = [
-  { t: 0, planets: [{ owner: 1, ships: 50 }, { owner: 2, ships: 50 }, { owner: 0, ships: 10 }], launches: [] },
-  {
-    t: 1,
-    planets: [{ owner: 1, ships: 22 }, { owner: 2, ships: 53 }, { owner: 0, ships: 10 }],
-    launches: [{ id: "f1", owner: 1, from: 0, to: 2, ships: 30, launch: 0, arrive: 3 }],
-  },
-  {
-    t: 2,
-    planets: [{ owner: 1, ships: 24 }, { owner: 2, ships: 51 }, { owner: 0, ships: 10 }],
-    launches: [{ id: "f2", owner: 2, from: 1, to: 2, ships: 5, launch: 1, arrive: 4 }],
-  },
-  { t: 3, planets: [{ owner: 1, ships: 26 }, { owner: 2, ships: 54 }, { owner: 1, ships: 20 }], launches: [] },
-  {
-    t: 4,
-    planets: [{ owner: 1, ships: 18 }, { owner: 2, ships: 57 }, { owner: 1, ships: 16 }],
-    launches: [{ id: "f3", owner: 1, from: 0, to: 2, ships: 10, launch: 3, arrive: 5 }],
-  },
-  { t: 5, planets: [{ owner: 1, ships: 20 }, { owner: 2, ships: 60 }, { owner: 1, ships: 27 }], launches: [] },
-];
-
-function filled(): ReplayBuffer {
-  const buffer = new ReplayBuffer(map);
-  for (const frame of frames) expect(buffer.append(frame)).toBe(true);
+function bufferOf(replay: ReplayResponse, flip = false): ReplayBuffer {
+  const buffer = new ReplayBuffer(toMap(replay.map, flip));
+  for (const frame of replay.frames) expect(buffer.append(toFrame(frame, flip))).toBe(true);
   return buffer;
 }
 
-describe("ReplayBuffer", () => {
-  it("leitet Eroberung, abgewehrten Angriff und Verstärkung ab", () => {
-    const buffer = filled();
-    expect(buffer.events[3]).toMatchObject([{ planet: 2, kind: "capture", arrived: [30, 0] }]);
-    expect(buffer.events[4]).toMatchObject([{ planet: 2, kind: "battle", arrived: [0, 5] }]);
-    expect(buffer.events[5]).toMatchObject([{ planet: 2, kind: "reinforce", arrived: [10, 0] }]);
-    expect(buffer.captures.map((event) => event.t)).toEqual([3]);
+describe("Replay-Datei", () => {
+  it("nimmt das Beispiel-Replay von Agent-A an", () => {
+    expect(() => parseReplayFile(fixture)).not.toThrow();
+    expect(parseReplayFile(fixture).frames.length).toBe(73);
   });
 
-  it("zählt Schiffe auf Planeten und in der Luft", () => {
-    const buffer = filled();
-    expect(buffer.stats[0]).toMatchObject({ ships: [50, 50], production: [2, 3], planets: [1, 1], neutralPlanets: 1 });
-    expect(buffer.stats[1].inFlight).toEqual([30, 0]);
-    expect(buffer.stats[2].inFlight).toEqual([30, 5]);
-    expect(buffer.stats[3]).toMatchObject({ inFlight: [0, 5], onPlanets: [46, 54], production: [3, 3] });
-    expect(buffer.stats[5]).toMatchObject({ inFlight: [0, 0], ships: [47, 60], planets: [2, 1], neutralPlanets: 0 });
+  it("erklärt, warum eine Datei des alten Spiels nicht mehr geht", () => {
+    expect(() => parseReplayFile({ format: "planetwars-replay", version: 1 })).toThrow(/alten Planet Wars/);
   });
 
-  it("nimmt Ereignisse des Servers, wenn er sie mitliefert", () => {
-    const buffer = new ReplayBuffer(map);
-    buffer.append(frames[0]);
-    const given = { t: 1, planet: 1, kind: "battle" as const, arrived: [7, 0] as [number, number], before: frames[0].planets[1], after: frames[1].planets[1] };
-    buffer.append({ ...frames[1], events: [given] });
-    expect(buffer.events[1]).toEqual([given]);
-  });
-
-  it("zählt eine Flotte, die im selben Tick startet und ankommt, nie als in der Luft", () => {
-    const buffer = new ReplayBuffer(map);
-    buffer.append(frames[0]);
-    buffer.append({
-      t: 1,
-      planets: [{ owner: 1, ships: 42 }, { owner: 2, ships: 53 }, { owner: 0, ships: 0 }],
-      launches: [{ id: "kurz", owner: 1, from: 0, to: 2, ships: 10, launch: 0, arrive: 1 }],
-    });
-    expect(buffer.stats[1].inFlight).toEqual([0, 0]);
-  });
-
-  it("zeigt Flotten ab dem Start bis vor den Ankunfts-Tick, auch nach dem Zurückspulen", () => {
-    const buffer = filled();
-    const ids = (pos: number) => buffer.activeFleets(pos).map((fleet) => fleet.id);
-    expect(ids(0.5)).toEqual(["f1"]);
-    expect(ids(1)).toEqual(["f1", "f2"]);
-    expect(ids(2.5)).toEqual(["f1", "f2"]);
-    expect(ids(3)).toEqual(["f2", "f3"]);
-    expect(ids(4.2)).toEqual(["f3"]);
-    expect(ids(5)).toEqual([]);
-    expect(ids(2.5)).toEqual(["f1", "f2"]);
-  });
-
-  it("nimmt bekannte Ticks hin und lehnt Lücken ab", () => {
-    const buffer = new ReplayBuffer(map);
-    expect(buffer.append(frames[0])).toBe(true);
-    expect(buffer.append(frames[0])).toBe(true);
-    expect(buffer.append(frames[2])).toBe(false);
-    expect(buffer.lastTick).toBe(0);
-  });
-
-  it("liefert Ereignisse eines Zeitfensters", () => {
-    const buffer = filled();
-    expect(buffer.eventsWithin(4.5, 2).map((event) => event.t)).toEqual([3, 4]);
-    expect(buffer.eventsWithin(2.9, 2)).toEqual([]);
-  });
-
-  it("teilt gleich, wenn beide nichts haben", () => {
-    expect(share([0, 0])).toBe(0.5);
-    expect(share([30, 10])).toBe(0.75);
+  it("lehnt Unlesbares mit einem Grund ab", () => {
+    expect(() => parseReplayFile(null)).toThrow(/kein JSON-Objekt/);
+    expect(() => parseReplayFile({ format: "etwas" })).toThrow(/format/);
+    expect(() => parseReplayFile({ ...fixture, version: 3 })).toThrow(/Version 3/);
+    expect(() => parseReplayFile({ ...fixture, frames: [] })).toThrow(/keine Frames/);
+    expect(() => parseReplayFile({ ...fixture, frames: fixture.frames.slice(1) })).toThrow(/Frame 0/);
+    expect(() => parseReplayFile({ ...fixture, map: { ...fixture.map, routes: [[0, 99, 1]] } })).toThrow(/Route/);
+    const broken = structuredClone(fixture);
+    broken.frames[5].planets.pop();
+    expect(() => parseReplayFile(broken)).toThrow(/Frame 5 passt nicht zur Karte/);
+    const noParams = structuredClone(fixture) as unknown as { match: Record<string, unknown> };
+    delete noParams.match.params;
+    expect(() => parseReplayFile(noParams)).toThrow(/Zahlenwerte/);
   });
 });
 
-describe("ArenaController", () => {
-  it("spielt ein beendetes Match von vorn ab und hält am Ende an", () => {
-    const controller = new ArenaController(map, meta("finished"));
-    controller.append(frames, 0);
+describe("Adapter", () => {
+  it("übersetzt Karte, Kopf und Frames", () => {
+    const map = toMap(fixture.map);
+    expect(map.planets).toHaveLength(15);
+    expect(map.planets[0]).toMatchObject({ name: "Alphard", home: 1, hub: false });
+    expect(map.planets[1].home).toBe(2);
+    expect(map.planets.filter((planet) => planet.hub)).toHaveLength(3);
+    expect(map.routes.every((route) => route.a < route.b && route.length >= 1 && route.length <= 3)).toBe(true);
+
+    const meta = toMeta(fixture.match);
+    expect(meta).toMatchObject({ rules: "rundenstrategie/1.0", rounds: 120, roundMs: 8000, status: "finished" });
+    expect(meta.params.homeGuard).toBe(15);
+    expect(meta.result).toEqual({ winner: 1, reason: "home" });
+    expect(meta.players[0].name).toBe("Standard");
+
+    const start = toFrame(fixture.frames[0]);
+    expect(start.planets[0]).toMatchObject({ owner: 1, ships: 30 });
+    expect(start.planets[2].owner).toBe(0);
+    expect(start.seats[0].submitted).toBeNull();
+  });
+
+  it("liest Aktionen, auch abgelehnte und unlesbare", () => {
+    const round4 = toFrame(fixture.frames[4]);
+    const rejected = round4.actions[1].find((action) => !action.ok);
+    expect(rejected).toMatchObject({ ok: false, code: "not_owner" });
+    const moves = toFrame(fixture.frames[1]).actions[0];
+    expect(moves.length).toBeGreaterThan(0);
+    expect(moves[0]).toMatchObject({ ok: true, kind: "move", code: null });
+    expect(moves[0].fleet).not.toBeNull();
+
+    const odd = structuredClone(fixture.frames[1]);
+    odd.actions[0] = [{ action: "Unsinn", ok: false, code: "bad_action" }, { action: null, ok: false }];
+    const shown = toFrame(odd).actions[0];
+    expect(shown[0]).toMatchObject({ kind: "other", ok: false, code: "bad_action", from: null, to: null });
+    expect(shown[1]).toMatchObject({ kind: "other", code: "bad_action" });
+  });
+
+  it("vertauscht mit `flip` beide Seiten vollständig", () => {
+    const straight = fixture.frames.map((frame) => toFrame(frame));
+    const flipped = fixture.frames.map((frame) => toFrame(frame, true));
+    const swap = (owner: number) => (owner === 0 ? 0 : 3 - owner);
+    straight.forEach((frame, round) => {
+      const other = flipped[round];
+      expect(other.seats).toEqual([frame.seats[1], frame.seats[0]]);
+      expect(other.actions).toEqual([frame.actions[1], frame.actions[0]]);
+      expect(other.planets.map((planet) => planet.owner)).toEqual(frame.planets.map((planet) => swap(planet.owner)));
+      expect(other.fleets.map((fleet) => fleet.owner)).toEqual(frame.fleets.map((fleet) => swap(fleet.owner)));
+      frame.events.forEach((event, index) => {
+        const mirrored = other.events[index];
+        if (event.kind === "route" && mirrored.kind === "route") {
+          expect(mirrored.fleets.map((fleet) => fleet.owner)).toEqual(event.fleets.map((fleet) => swap(fleet.owner)));
+        } else if (event.kind !== "route" && event.kind !== "built" && mirrored.kind !== "route" && mirrored.kind !== "built") {
+          expect(mirrored.arrived).toEqual([event.arrived[1], event.arrived[0]]);
+          expect(mirrored.after.owner).toBe(swap(event.after.owner));
+        }
+      });
+    });
+    expect(toMap(fixture.map, true).planets[0].home).toBe(2);
+    expect(toMeta(fixture.match, true).result).toEqual({ winner: 2, reason: "home" });
+    expect(toMeta(fixture.match, true).players[0].name).toBe("Sturm");
+  });
+});
+
+/** Prüft, dass der aufbereitete Ablauf jeder Runde genau von einem Frame zum nächsten führt. */
+function expectConsistent(buffer: ReplayBuffer): void {
+  for (let round = 1; round <= buffer.lastRound; round++) {
+    const previous = buffer.frames[round - 1];
+    const frame = buffer.frames[round];
+    const transition = buffer.transitions[round]!;
+    const tracks = new Map(transition.tracks.map((track) => [track.id, track]));
+    const arrived = new Set(transition.planetEvents.flatMap((event) => event.fleets));
+    const where = `Runde ${round}`;
+
+    // Jede Flotte von vorher hat einen Weg: Sie fliegt weiter, kommt an oder wird vernichtet.
+    for (const fleet of previous.fleets) {
+      const track = tracks.get(fleet.id);
+      expect(track, `${where}, Flotte ${fleet.id}`).toBeDefined();
+      const survives = frame.fleets.some((next) => next.id === fleet.id);
+      expect(survives || arrived.has(fleet.id) || track!.shipsAfter === 0, `${where}, Flotte ${fleet.id} verschwindet ohne Grund`).toBe(true);
+    }
+    // Jede Flotte von nachher endet dort, wo ihr Weg endet, mit so vielen Schiffen, wie der Weg sagt.
+    for (const fleet of frame.fleets) {
+      const track = tracks.get(fleet.id)!;
+      expect(track, `${where}, Flotte ${fleet.id}`).toBeDefined();
+      expect(track.end, `${where}, Flotte ${fleet.id}`).toBe(fleet.progress);
+      expect(track.shipsAfter).toBe(fleet.ships);
+      expect(track.arrives).toBe(false);
+    }
+    for (const track of transition.tracks) {
+      expect(track.start).toBeGreaterThanOrEqual(0);
+      expect(track.end).toBeLessThanOrEqual(track.length);
+      if (track.arrives) expect(track.end).toBe(track.length);
+      if (track.launched) expect(track.start).toBe(0);
+      // Ein Kampf auf der Route liegt auf dem Stück, das die Flotte in dieser Runde fliegt.
+      for (const battle of track.battles) {
+        expect(battle.at, `${where}, Flotte ${track.id}`).toBeGreaterThanOrEqual(track.start);
+        expect(battle.at).toBeLessThanOrEqual(Math.max(track.end, track.start + 1));
+      }
+    }
+    // Kein Planet schickt mehr los, als er hat.
+    for (const [planet, ships] of transition.launched) {
+      expect(ships, `${where}, Planet ${planet}`).toBeLessThanOrEqual(previous.planets[planet].ships);
+    }
+    // Angekommene Schiffe stimmen mit den Wegen überein.
+    for (const event of transition.planetEvents) {
+      const sum: [number, number] = [0, 0];
+      for (const id of event.fleets) {
+        const track = tracks.get(id)!;
+        sum[track.owner - 1] += track.shipsAfter;
+        expect(track.to).toBe(event.planet);
+      }
+      expect(sum, `${where}, Planet ${event.planet}`).toEqual(event.arrived);
+      expect(frame.planets[event.planet].owner).toBe(event.after.owner);
+    }
+  }
+}
+
+describe("Puffer und Rundenablauf", () => {
+  it("führt im Beispiel-Replay jede Runde lückenlos zum nächsten Frame", () => {
+    const buffer = bufferOf(fixture);
+    expect(buffer.lastRound).toBe(72);
+    expect(buffer.transitions[0]).toBeNull();
+    expectConsistent(buffer);
+  });
+
+  it("tut das auch für frisch gespielte Matches, gerade und vertauscht", () => {
+    for (const seed of [1, 7, 42, 207, 999]) {
+      expectConsistent(bufferOf(played(seed)));
+      expectConsistent(bufferOf(played(seed, ["sturm", "standard"], 17), true));
+    }
+  });
+
+  it("kennt die Kämpfe des Beispiel-Replays", () => {
+    const buffer = bufferOf(fixture);
+    const mid = buffer.transitions[53]!.routeBattles[0];
+    expect(mid.at).toBe(1.5);
+    // Beide Flotten treffen sich am selben Punkt, jede von ihrer Seite gemessen.
+    const fighters = mid.fleets.map((fleet) => buffer.transitions[53]!.tracks.find((track) => track.id === fleet.id)!);
+    expect(fighters).toHaveLength(2);
+    const fromA = fighters.map((track) => (track.from === mid.a ? track.battles[0].at : track.length - track.battles[0].at));
+    expect(fromA).toEqual([1.5, 1.5]);
+
+    // Ausfall direkt vor dem Planeten: Die neue Flotte kämpft, bevor sie sich bewegt.
+    const sally = buffer.transitions[46]!;
+    expect(sally.routeBattles[0].at).toBe(0);
+    expect(sally.tracks.some((track) => track.launched && track.battles.length === 1 && track.battles[0].at === 0)).toBe(true);
+
+    expect(buffer.captures.length).toBeGreaterThan(5);
+    // Die letzte Runde bringt den Heimatsieg: Planet 1 ist die Heimat von Spieler 2.
+    expect(buffer.captures.some((event) => event.round === 72 && event.planet === 1 && event.after.owner === 1)).toBe(true);
+  });
+
+  it("übergeht bekannte Runden und meldet Lücken", () => {
+    const buffer = new ReplayBuffer(toMap(fixture.map));
+    const frames = fixture.frames.map((frame) => toFrame(frame));
+    expect(buffer.append(frames[0])).toBe(true);
+    expect(buffer.append(frames[0])).toBe(true);
+    expect(buffer.append(frames[2])).toBe(false);
+    expect(buffer.lastRound).toBe(0);
+    expect(buffer.append({ ...frames[1], planets: frames[1].planets.slice(1) })).toBe(false);
+    expect(buffer.append(frames[1])).toBe(true);
+    expect(buffer.frameAt(0.9)?.round).toBe(0);
+    expect(buffer.frameAt(99)?.round).toBe(1);
+    expect(buffer.lengthOf(11, 2)).toBe(buffer.lengthOf(2, 11));
+  });
+
+  it("zählt neutrale Planeten und rechnet Anteile", () => {
+    expect(neutralPlanets(toFrame(fixture.frames[0]))).toBe(13);
+    expect(share([3, 1])).toBe(0.75);
+    expect(share([0, 0])).toBe(0.5);
+  });
+
+  it("rechnet die Verteidigung mit Heimatschutz und Festung", () => {
+    const map = toMap(fixture.map);
+    const params = toMeta(fixture.match).params;
+    const home = map.planets[0];
+    const state = { owner: 1 as const, ships: 20, building: null, supply: null };
+    expect(defenseOf(home, state, 10, params)).toBe(35);
+    // Der Heimatschutz gilt nur für den Spieler, dessen Heimat es ist.
+    expect(defenseOf(home, { ...state, owner: 2 }, 10, params)).toBe(20);
+    expect(defenseOf(map.planets[2], state, 10, params)).toBe(20);
+    const fortified = { ...state, building: { type: "fortress" as const, ready: 8 } };
+    expect(defenseOf(home, fortified, 10, params)).toBe(45);
+    // Eine Festung im Bau zählt noch nicht.
+    expect(defenseOf(home, { ...fortified, building: { type: "fortress", ready: 12 } }, 10, params)).toBe(35);
+  });
+});
+
+describe("Zeitplan einer Runde", () => {
+  it("ordnet jeden Moment einem Schritt zu, in der Reihenfolge der Regeln", () => {
+    expect(phaseOf(0)).toBe("orders");
+    expect(phaseOf(TIMING.moveFrom)).toBe("move");
+    expect(phaseOf(TIMING.routeHit)).toBe("fight");
+    expect(phaseOf(TIMING.arriveHit)).toBe("fight");
+    expect(phaseOf(0.95)).toBe("result");
+    const order = [
+      TIMING.launchFrom,
+      TIMING.launchTo,
+      TIMING.moveFrom,
+      TIMING.moveTo,
+      TIMING.routeHit,
+      TIMING.routeSettle,
+      TIMING.resumeFrom,
+      TIMING.resumeTo,
+      TIMING.arriveHit,
+      TIMING.planetSettle,
+      TIMING.production,
+    ];
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+});
+
+describe("Abspielkopf", () => {
+  const running: MatchMeta = { ...toMeta(fixture.match), status: "running", result: null };
+  const frames: Frame[] = fixture.frames.map((frame) => toFrame(frame));
+
+  function live(count: number): ArenaController {
+    const controller = new ArenaController(toMap(fixture.map), running);
+    controller.append(frames.slice(0, count), 0);
+    return controller;
+  }
+
+  it("spielt ein beendetes Match als Replay von vorn, im festen Schautempo", () => {
+    const controller = controllerFromReplay(fixture);
+    expect(controller.getState()).toMatchObject({ round: 0, showing: 0, lastRound: 72, playing: true, following: false, atEnd: false });
+    // Der Abspielkopf rückt je Bild höchstens eine Viertelsekunde vor, also in kleinen Schritten.
+    const run = (from: number, to: number) => {
+      for (let now = from; now <= to; now += 50) controller.advance(now);
+    };
+    run(1000, 1000 + VIEW_ROUND_MS / 2);
+    expect(controller.pos).toBeCloseTo(0.5);
+    expect(controller.getState()).toMatchObject({ round: 0, showing: 1 });
+    controller.setSpeed(2);
+    run(1000 + VIEW_ROUND_MS / 2, 1000 + VIEW_ROUND_MS);
+    expect(controller.pos).toBeCloseTo(1.5);
+    // Die Dauer hängt nicht davon ab, wie schnell das Match gespielt wurde.
+    expect(controller.meta.roundMs).toBe(8000);
+    expect(controller.roundViewMs).toBe(VIEW_ROUND_MS / 2);
+  });
+
+  it("bleibt am Ende stehen und beginnt beim Abspielen von vorn", () => {
+    const controller = controllerFromReplay(fixture);
+    controller.seek(71.9);
     controller.advance(0);
-    controller.advance(250);
-    expect(controller.pos).toBeCloseTo(2.5);
-    expect(controller.getState()).toMatchObject({ tick: 2, playing: true, following: false, atEnd: false });
-    for (let now = 500; now <= 1000; now += 250) controller.advance(now);
-    expect(controller.getState()).toMatchObject({ tick: 5, playing: false, atEnd: true });
+    for (let now = 100; now <= 3000; now += 100) controller.advance(now);
+    expect(controller.getState()).toMatchObject({ round: 72, showing: 72, playing: false, atEnd: true });
     controller.play();
     expect(controller.pos).toBe(0);
   });
 
-  it("folgt einem laufenden Match mit einem Tick Abstand und überholt den neuesten Frame nie", () => {
-    const controller = new ArenaController(map, meta("running"));
-    controller.append(frames.slice(0, 2), 0);
-    controller.advance(0);
-    controller.advance(200);
-    expect(controller.pos).toBe(1);
-    controller.append([frames[2]], 300);
-    controller.advance(300);
-    controller.advance(350);
-    expect(controller.pos).toBeGreaterThan(1);
-    expect(controller.pos).toBeLessThan(2);
-    expect(controller.getState().following).toBe(true);
-  });
-
-  it("hält an, wenn ein live verfolgtes Match endet", () => {
-    const controller = new ArenaController(map, meta("running"));
-    controller.append(frames, 0);
-    controller.setMeta(meta("finished"));
-    for (let now = 0; now <= 2000; now += 100) controller.advance(now);
-    expect(controller.getState()).toMatchObject({ tick: 5, playing: false, following: false, atEnd: true });
-  });
-
-  it("verlässt beim Spulen die Live-Verfolgung und kehrt mit goLive zurück", () => {
-    const controller = new ArenaController(map, meta("running"));
-    controller.append(frames, 0);
-    controller.seek(1.5);
-    expect(controller.getState()).toMatchObject({ tick: 1, following: false, playing: true });
-    controller.step(-1);
-    expect(controller.getState()).toMatchObject({ tick: 0, playing: false });
+  it("geht rundenweise vor und zurück, auch mitten in einer Auflösung", () => {
+    const controller = controllerFromReplay(fixture);
+    controller.seek(10);
     controller.step(1);
-    expect(controller.pos).toBe(1);
+    expect(controller.pos).toBe(11);
+    controller.step(-1);
+    expect(controller.pos).toBe(10);
+    controller.seek(10.4);
+    controller.step(-1);
+    // Zurück an den Anfang der laufenden Auflösung, nicht eine ganze Runde davor.
+    expect(controller.pos).toBe(10);
+    controller.seek(10.4);
+    controller.step(1);
+    expect(controller.pos).toBe(11);
+    expect(controller.getState().playing).toBe(false);
+    controller.step(-99);
+    expect(controller.pos).toBe(0);
+  });
+
+  it("folgt einem laufenden Match und zeigt jede neue Runde in voller Länge", () => {
+    const controller = live(3);
+    expect(controller.getState()).toMatchObject({ following: true, lastRound: 2 });
+    controller.advance(0);
+    for (let now = 50; now <= 20_000; now += 50) controller.advance(now);
+    expect(controller.pos).toBe(2);
+    expect(controller.getState()).toMatchObject({ playing: true, following: true, atEnd: false });
+
+    controller.append([frames[3]], 20_000);
+    controller.advance(20_050);
+    controller.advance(20_100);
+    expect(controller.pos).toBeGreaterThan(2);
+    expect(controller.pos).toBeLessThan(2.1);
+    expect(controller.getState()).toMatchObject({ round: 2, showing: 3 });
+    // Länger als viereinhalb Sekunden dauert die Auflösung auch bei acht Sekunden je Runde nicht.
+    expect(controller.roundViewMs).toBeLessThanOrEqual(4500);
+    for (let now = 20_150; now <= 26_000; now += 50) controller.advance(now);
+    expect(controller.pos).toBe(3);
+  });
+
+  it("springt bei großem Rückstand, statt alles nachzuspielen", () => {
+    const controller = live(2);
+    controller.advance(0);
+    controller.append(frames.slice(2, 30), 100);
+    expect(controller.pos).toBe(28);
+  });
+
+  it("verlässt beim Zurückspulen den Live-Stand und kehrt auf Wunsch zurück", () => {
+    const controller = live(20);
+    controller.seek(5);
+    expect(controller.getState().following).toBe(false);
     controller.goLive();
     expect(controller.getState()).toMatchObject({ following: true, playing: true, speed: 1 });
-    expect(controller.pos).toBe(4);
-  });
-
-  it("springt nach vorn, wenn im Live-Betrieb viele Frames auf einmal kommen", () => {
-    const controller = new ArenaController(map, meta("running"));
-    const many: Frame[] = Array.from({ length: 20 }, (_, t) => ({ ...frames[0], t }));
-    controller.append(many, 0);
     expect(controller.pos).toBe(18);
   });
 
-  it("meldet Zuhörern nur Änderungen des sichtbaren Zustands", () => {
-    const controller = new ArenaController(map, meta("finished"));
-    controller.append(frames, 0);
-    let calls = 0;
-    controller.subscribe(() => calls++);
+  it("hört am Ende eines live verfolgten Matches auf zu spielen", () => {
+    const controller = live(72);
+    controller.append([frames[72]], 0);
+    controller.setMeta(toMeta(fixture.match));
     controller.advance(0);
-    controller.advance(10);
-    controller.advance(20);
-    expect(calls).toBe(0);
-    controller.advance(120);
+    for (let now = 100; now <= 30_000; now += 100) controller.advance(now);
+    expect(controller.getState()).toMatchObject({ round: 72, playing: false, following: false, atEnd: true });
+  });
+
+  it("meldet Änderungen am Kopf und an der Runde, nicht jedes Bild", () => {
+    const controller = controllerFromReplay(fixture);
+    let calls = 0;
+    controller.subscribe(() => (calls += 1));
+    controller.advance(0);
+    for (let now = 16; now <= VIEW_ROUND_MS * 0.9; now += 16) controller.advance(now);
+    // Vom Stand der Runde 0 in die Auflösung der Runde 1: genau eine Meldung.
     expect(calls).toBe(1);
-  });
-});
-
-describe("Adapter auf das Server-Format", () => {
-  const gameMap = generateMap({ seed: 11, planets: 24 });
-  const simulation = simulate({
-    map: gameMap,
-    bots: [getBuiltinBot(DEMO_BOTS[0])!.play, getBuiltinBot(DEMO_BOTS[1])!.play],
-    tickLimit: 200,
-  });
-  const file = replayFile({
-    id: "sim",
-    map: gameMap,
-    frames: simulation.frames,
-    result: simulation.result,
-    names: ["Eins", "Zwei"],
-    bots: [DEMO_BOTS[0], DEMO_BOTS[1]],
-    options: { tickLimit: 200 },
-  });
-
-  it("kommt bei Schiffen, Produktion und Planeten auf dieselben Summen wie die Engine", () => {
-    const buffer = new ReplayBuffer(toMap(file.map));
-    for (const frame of file.frames) expect(buffer.append(toFrame(frame))).toBe(true);
-    expect(buffer.lastTick).toBe(file.frames.length - 1);
-    file.frames.forEach((frame, t) => {
-      const stats = buffer.stats[t];
-      expect(stats.ships, `Schiffe in Tick ${t}`).toEqual([frame.players[0].ships, frame.players[1].ships]);
-      expect(stats.production).toEqual([frame.players[0].growth, frame.players[1].growth]);
-      expect(stats.planets).toEqual([frame.players[0].planets, frame.players[1].planets]);
-      expect(Math.min(...stats.inFlight)).toBeGreaterThanOrEqual(0);
-    });
-    expect(buffer.captures.length).toBeGreaterThan(0);
-  });
-
-  it("übersetzt Besitzer, Flotten und Ergebnis", () => {
-    const first = toFrame(file.frames[0]);
-    expect(first.planets[file.map.homes[0]]).toEqual({ owner: 1, ships: file.map.initial[file.map.homes[0]][1] });
-    expect(first.planets[file.map.homes[1]].owner).toBe(2);
-    const launched = file.frames.find((frame) => frame.launches.length > 0)!;
-    const fleet = toFrame(launched).launches[0];
-    expect(fleet.launch).toBe(launched.t - 1);
-    expect(fleet.owner).toBe(launched.launches[0].owner + 1);
-    const meta = toMeta(file.match);
-    expect(meta.status).toBe("finished");
-    expect(meta.players[0]).toMatchObject({ name: "Eins", builtIn: true, joined: true });
-    expect(meta.result?.winner).toBe(simulation.result.winner === null ? 0 : simulation.result.winner + 1);
-  });
-
-  it("vertauscht mit flip beide Seiten vollständig", () => {
-    const plain = new ReplayBuffer(toMap(file.map));
-    const flipped = new ReplayBuffer(toMap(file.map));
-    for (const frame of file.frames) {
-      plain.append(toFrame(frame));
-      flipped.append(toFrame(frame, true));
-    }
-    plain.stats.forEach((stats, t) => {
-      expect(flipped.stats[t].ships).toEqual([stats.ships[1], stats.ships[0]]);
-      expect(flipped.stats[t].production).toEqual([stats.production[1], stats.production[0]]);
-      expect(flipped.stats[t].inFlight).toEqual([stats.inFlight[1], stats.inFlight[0]]);
-    });
-    expect(flipped.events.flat().map((event) => event.kind)).toEqual(plain.events.flat().map((event) => event.kind));
-    const meta = toMeta(file.match, true);
-    expect(meta.players.map((player) => player.name)).toEqual(["Zwei", "Eins"]);
-    const winner = simulation.result.winner;
-    expect(meta.result?.winner).toBe(winner === null ? 0 : 2 - winner);
-    expect(toFrame(file.frames[5], true).seats).toHaveLength(2);
-  });
-
-  it("nimmt eine echte Replay-Datei an und lehnt kaputte mit Begründung ab", () => {
-    const copy = JSON.parse(JSON.stringify(file));
-    expect(parseReplayFile(copy).frames.length).toBe(file.frames.length);
-    expect(() => parseReplayFile({ ...copy, format: "anders" })).toThrow(/format/);
-    expect(() => parseReplayFile({ ...copy, frames: copy.frames.slice(1) })).toThrow(/Frame 0/);
-    expect(() => parseReplayFile(null)).toThrow(/kein JSON-Objekt/);
-    const broken = JSON.parse(JSON.stringify(file));
-    broken.frames[2].planets.pop();
-    expect(() => parseReplayFile(broken)).toThrow(/Frame 2/);
+    const version = controller.getMetaVersion();
+    controller.setMeta(controller.meta);
+    expect(controller.getMetaVersion()).toBe(version + 1);
   });
 });
