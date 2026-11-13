@@ -1,19 +1,10 @@
 import { connection } from "next/server";
-import { listGames } from "@/lib/games";
+import { getArena } from "@/lib/arena/arena";
 import { handle, json } from "@/lib/http";
-import { getStore } from "@/lib/match/store";
 
+/** Lebenszeichen, Start-Kennung, eingebaute Bots, Standardwerte und Grenzen. */
 export async function GET() {
-  // Die Auskunft hängt von der laufenden Umgebung ab und darf nicht beim Bauen eingefroren werden.
+  // Die Auskunft hängt vom laufenden Prozess ab und darf nicht beim Bauen eingefroren werden.
   await connection();
-  return handle(async () => {
-    const store = getStore();
-    return json({
-      ok: true,
-      store: store.kind,
-      durable: store.kind === "redis",
-      createKeyRequired: Boolean(process.env.CREATE_KEY),
-      games: listGames(),
-    });
-  });
+  return handle(() => json(getArena().health()));
 }

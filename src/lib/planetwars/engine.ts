@@ -95,6 +95,21 @@ function applyOrders(
 }
 
 /**
+ * Prüft Befehle gegen einen Stand, ohne ihn zu verändern. Da jeder Sitz nur
+ * von eigenen Planeten schickt, steht das Ergebnis schon beim Einreichen fest.
+ */
+export function checkOrders(
+  map: GameMap,
+  state: GameState,
+  seat: Seat,
+  orders: unknown,
+): { accepted: number; rejected: RejectedOrder[] } {
+  const planets: PlanetState[] = state.planets.map(([owner, ships]) => [owner, ships]);
+  const { valid, rejected } = applyOrders(map, planets, seat, orders);
+  return { accepted: valid.length, rejected };
+}
+
+/**
  * Rechnet die Ankünfte an einem Planeten ab. Kräfte werden je Partei
  * summiert, die größte gewinnt und behält die Differenz zur zweitgrößten.
  * Bei Gleichstand der beiden größten bleibt der Besitzer, mit 0 Schiffen.
