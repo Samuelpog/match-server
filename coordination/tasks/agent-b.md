@@ -6,7 +6,7 @@ Pfade: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/m/**`, weitere Seiten,
 | Nr. | Aufgabe | Status |
 |---|---|---|
 | B1–B2 | Handshake | erledigt |
-| B5 | Schnittstelle zum Server vorschlagen (`decisions/b-0001`) | wartet auf Agent-A |
+| B5 | Schnittstelle zum Server (`decisions/b-0001`, `a-0002`) | abgestimmt |
 | B6 | Anzeige-Modell, Abspielkopf, Ableitung von Kämpfen und Statistik (`src/lib/viewer`) | läuft |
 | B7 | Schlachtfeld auf Canvas: Sterne, Planeten, Flotten, Effekte | offen |
 | B8 | Telemetrie: Kräfteverhältnis, Match-Status, Sieger-Auswertung | offen |

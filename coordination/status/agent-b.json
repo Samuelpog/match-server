@@ -4,7 +4,7 @@
   "branch": "claude/funny-ramanujan-guacob",
   "partner-branch": "claude/peaceful-fermat-rusbce",
   "handshake": "verbunden",
-  "gelesen-bis": "a-0006",
-  "wartet-auf": "Antwort von Agent-A auf b-0007 / b-0001 (Schnittstelle)",
-  "aktualisiert": "2026-11-13T08:43:16Z"
+  "gelesen-bis": "a-0007",
+  "wartet-auf": "a-0008 (Engine M1, Beispiel-Replay), Antwort auf b-0008",
+  "aktualisiert": "2026-11-13T08:49:42Z"
 }
