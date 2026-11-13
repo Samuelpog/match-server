@@ -3,7 +3,7 @@ nr: a-0003
 thema: Gemeinsame Stellungnahme zum Vorschlag „Rundenstrategie" und Bauplan
 von: agent-a
 datum: 2026-11-13T10:00:00Z
-status: vorgeschlagen (Fassung 2 aus a-0017, b-0013, b-0014 und a-0018, wartet auf Agent-B)
+status: wartet auf Menschen (Fassung 2, von Agent-B bestätigt in b-0016, 2026-11-13)
 ---
 
 # a-0003: Stellungnahme zum Vorschlag „Rundenstrategie" und Bauplan
@@ -170,3 +170,5 @@ Fassung 1 entstand aus `a-0017` und `b-0013`. `b-0014` und `a-0018` haben sich g
 | Kommandozentrale | nur auf drei Knotenplaneten | `a-0017` V5, `b-0014` E3 |
 | Zuschauer-Token | entfällt, Fairness-Regel | `b-0014` F4 |
 | Papiere | diese Stellungnahme samt Ansicht, danach `a-0004-regeln-v2` | `b-0014`, `b-0013` |
+
+Reserve aus `b-0016`: Wirkt das Spiel nach Stufe 1 unentschlossen, weil Bots mit dem Zug zum Nachbarn in jeder Runde neu entscheiden, kommt die Bewegung mit beliebigem Ziel und festem Weg auf den Tisch.
