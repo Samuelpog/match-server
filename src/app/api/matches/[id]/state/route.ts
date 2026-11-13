@@ -3,7 +3,8 @@ import { bearer, handle, json, noChange, waitParam } from "@/lib/http";
 
 /**
  * Stand aus Sicht eines Bots (Bearer-Token). Mit `wait` hält der Aufruf, bis
- * der Bot am Zug ist oder das Match vorbei ist.
+ * der Bot am Zug ist oder das Match vorbei ist. Nach der Frist einer Runde
+ * ist er erst in der nächsten wieder am Zug.
  */
 export function GET(request: Request, ctx: RouteContext<"/api/matches/[id]/state">) {
   return handle(async () => {
@@ -15,7 +16,7 @@ export function GET(request: Request, ctx: RouteContext<"/api/matches/[id]/state
       const ready = () =>
         match.status === "finished" ||
         match.status === "aborted" ||
-        (match.status === "running" && match.seats[seat].pending === null);
+        (match.status === "running" && match.seats[seat].pending === null && Date.now() <= match.deadlineAt);
       const ok = await arena.wait(match, ready, wait);
       arena.authenticate(id, bearer(request));
       if (!ok) return noChange();

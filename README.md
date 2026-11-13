@@ -1,17 +1,19 @@
 # Planet Wars Arena
 
-Zwei Bots kämpfen auf einer symmetrischen Sternenkarte um Planeten, im Browser schaut man live zu. Der Server spielt das Match Tick für Tick, zeichnet jeden Tick auf und spricht mit Bots und Zuschauern über REST.
+Zwei Bots kämpfen auf einer symmetrischen Sternenkarte um Planeten, im Browser schaut man live zu. Gespielt wird in Runden: Beide Bots geben verdeckt bis zu drei Aktionen ab, dann wird aufgelöst. Der Server zeichnet jede Runde auf und spricht mit Bots und Zuschauern über REST.
 
 Regeln, Takt und alle Endpunkte: [`docs/API.md`](docs/API.md).
 
 ## Aufbau
 
-- `src/lib/planetwars/`: die Engine. Kartengenerator, Tick-Auflösung, Wertung, eingebaute Bots, `simulate()`. Reiner Code, läuft in Node und im Browser.
-- `src/lib/arena/`: der Match-Server. Sitze, Tokens, Takt mit Frist, Aufzeichnung, Warten per Ereignis. `api-types.ts` beschreibt alle JSON-Formen.
+- `src/lib/game/`: die Engine der Rundenstrategie. Kartengenerator mit Routennetz, Auflösung einer Runde, Wertung, eingebaute Bots, `simulate()`. Reiner Code, läuft in Node und im Browser.
+- `src/lib/planetwars/`: die Engine des alten Spiels. Wird am Ende von Stufe 1 gelöscht, sobald die neue Ansicht steht.
+- `src/lib/arena/`: der Match-Server. Sitze, Tokens, Takt mit Frist, Aufzeichnung, Warten per Ereignis. `api-types-v2.ts` beschreibt alle JSON-Formen.
 - `src/app/api/`: REST-Endpunkte, dünn über der Arena.
 - `src/app/`, `src/components/`, `src/lib/viewer/`, `src/lib/client/`: Lobby, Live-Ansicht und Replay-Spieler.
-- `examples/bot.mjs`: Bot-Vorlage ohne Abhängigkeiten.
-- `fixtures/replay-beispiel.json`: ein vollständiges Match als Replay-Datei.
+- `examples/bot.mjs` und `examples/strategy.mjs`: Bot-Vorlage ohne Abhängigkeiten, Protokoll und Strategie getrennt.
+- `scripts/sim.mts`: Simulator für die Bot-Entwicklung, `npm run sim`.
+- `fixtures/replay-v2-stufe1.json`: ein vollständiges Match als Replay-Datei.
 - `coordination/`: Absprachen der beiden Agenten, die das Projekt bauen.
 
 ## Lokal starten
@@ -31,13 +33,19 @@ npm test
 Ein Demo-Match zwischen zwei eingebauten Bots anlegen:
 
 ```bash
-curl -X POST localhost:3000/api/matches -H 'content-type: application/json' -d '{"demo":true}'
+curl -X POST localhost:3000/api/matches -H 'content-type: application/json' -d '{"demo":true,"options":{"roundMs":500}}'
 ```
 
 Den Beispiel-Bot gegen einen eingebauten Bot spielen lassen:
 
 ```bash
-node examples/bot.mjs --vs expansion --name Alpha
+node examples/bot.mjs --vs standard --name Alpha
+```
+
+Zwei Bots ohne Server über 200 Karten gegeneinander messen:
+
+```bash
+npm run sim -- --a ./examples/strategy.mjs --b standard
 ```
 
 ## Betrieb

@@ -1,5 +1,5 @@
 import { getArena } from "@/lib/arena/arena";
-import type { JoinResponse } from "@/lib/arena/api-types";
+import type { JoinResponse } from "@/lib/arena/api-types-v2";
 import { handle, json, readBody } from "@/lib/http";
 
 /** Besetzt einen offenen Platz. Body: `{ "name"?: string }`. */

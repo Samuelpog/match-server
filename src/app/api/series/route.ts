@@ -1,4 +1,4 @@
-import type { SeriesListResponse, SeriesResponse } from "@/lib/arena/api-types";
+import type { SeriesListResponse, SeriesResponse } from "@/lib/arena/api-types-v2";
 import { seriesBriefing } from "@/lib/arena/briefing";
 import { getSeries } from "@/lib/arena/series";
 import { baseUrl, handle, intParam, json, readBody, requireArenaKey } from "@/lib/http";

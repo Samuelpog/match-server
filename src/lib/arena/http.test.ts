@@ -6,7 +6,7 @@ import { GET as replayRoute } from "@/app/api/matches/[id]/replay/route";
 import { GET as matchRoute } from "@/app/api/matches/[id]/route";
 import { GET as stateRoute } from "@/app/api/matches/[id]/state/route";
 import { GET as listRoute, POST as createRoute } from "@/app/api/matches/route";
-import type { JoinResponse, MatchResponse, OrdersResponse, PlayerState, ReplayResponse } from "./api-types";
+import type { JoinResponse, MatchResponse, OrdersResponse, PlayerState, ReplayResponse } from "./api-types-v2";
 import { getArena } from "./arena";
 
 const BASE = "http://arena.test";
@@ -48,8 +48,8 @@ describe("HTTP: Matches", () => {
     const { response, data } = await create({ options: { seed: 9 }, label: "Test" });
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(data.match).toMatchObject({ status: "waiting", seed: 9, label: "Test", tick: 0 });
-    expect(data.map.planets).toHaveLength(24);
+    expect(data.match).toMatchObject({ status: "waiting", seed: 9, label: "Test", round: 0 });
+    expect(data.map.planets).toHaveLength(15);
     expect(data.briefing).toContain(`${BASE}/api/matches/${data.match.id}/join`);
 
     const again = await matchRoute(request("GET", `/api/matches/${data.match.id}`), ctx(data.match.id));
@@ -90,16 +90,17 @@ describe("HTTP: Matches", () => {
 
 describe("HTTP: Zuschauer", () => {
   it("liefert Frames ab `from` und wartet auf neue", async () => {
-    const { data } = await create({ demo: true, options: { seed: 2026, tickMs: 50 } });
+    const { data } = await create({ demo: true, options: { seed: 2026, roundMs: 100 } });
     const id = data.match.id;
     const first = (await (await replayRoute(request("GET", `/api/matches/${id}/replay`), ctx(id))).json()) as ReplayResponse;
-    expect(first.frames[0].t).toBe(0);
+    expect(first.frames[0].round).toBe(0);
+    expect(first.version).toBe(2);
 
     const started = Date.now();
     const next = await replayRoute(request("GET", `/api/matches/${id}/replay?from=${first.next + 2}&wait=5`), ctx(id));
     expect(next.status).toBe(200);
     const body = (await next.json()) as ReplayResponse;
-    expect(body.frames[0].t).toBe(first.next + 2);
+    expect(body.frames[0].round).toBe(first.next + 2);
     expect(Date.now() - started).toBeLessThan(1500);
   });
 
@@ -126,8 +127,8 @@ describe("HTTP: Zuschauer", () => {
 });
 
 describe("HTTP: Bots", () => {
-  it("spielt einen Tick über join, state und orders", async () => {
-    const { data } = await create({ options: { seed: 7, tickMs: 50, timeoutMs: 400 } });
+  it("spielt eine Runde über join, state und orders", async () => {
+    const { data } = await create({ options: { seed: 7, roundMs: 100, timeoutMs: 500 } });
     const id = data.match.id;
     const a = await join(id, "Alpha");
     const b = await join(id, "Beta");
@@ -137,14 +138,17 @@ describe("HTTP: Bots", () => {
     const stateA = (await (
       await stateRoute(request("GET", `/api/matches/${id}/state?wait=5`, { token: a.token }), ctx(id))
     ).json()) as PlayerState;
-    expect(stateA).toMatchObject({ you: 0, tick: 0, submitted: false });
+    expect(stateA).toMatchObject({ you: 0, round: 1, submitted: false, actions: { limit: 3 } });
+    const neighbor = a.map.routes.find(([from]) => from === 0)![1];
+    const good = { type: "move", from: 0, to: neighbor, ships: 10 };
+    const bad = { type: "move", from: 1, to: neighbor, ships: 1 };
 
     const [answerA, answerB] = await Promise.all(
       [a, b].map(async (player, seat) => {
         const response = await ordersRoute(
           request("POST", `/api/matches/${id}/orders?wait=5`, {
             token: player.token,
-            body: { tick: 0, orders: seat === 0 ? [{ from: 0, to: 2, ships: 10 }, { from: 1, to: 2, ships: 1 }] : [] },
+            body: { round: 1, actions: seat === 0 ? [good, bad] : [] },
           }),
           ctx(id),
         );
@@ -152,17 +156,20 @@ describe("HTTP: Bots", () => {
       }),
     );
     expect(answerA.accepted).toBe(1);
-    expect(answerA.rejected).toEqual([expect.objectContaining({ index: 1, code: "not_owner" })]);
-    expect(answerA.state).toMatchObject({ tick: 1, you: 0, submitted: false });
-    expect(answerB.state).toMatchObject({ tick: 1, you: 1 });
+    expect(answerA.results).toEqual([
+      { action: good, ok: true },
+      { action: bad, ok: false, code: "not_owner" },
+    ]);
+    expect(answerA.state).toMatchObject({ round: 2, you: 0, submitted: false });
+    expect(answerB.state).toMatchObject({ round: 2, you: 1 });
     expect(answerA.state!.fleets).toHaveLength(1);
 
     const stale = await ordersRoute(
-      request("POST", `/api/matches/${id}/orders`, { token: a.token, body: { tick: 0, orders: [] } }),
+      request("POST", `/api/matches/${id}/orders`, { token: a.token, body: { round: 1, actions: [] } }),
       ctx(id),
     );
     expect(stale.status).toBe(409);
-    expect(await stale.json()).toMatchObject({ error: { code: "stale_tick", tick: 1 } });
+    expect(await stale.json()).toMatchObject({ error: { code: "stale_round", round: 2 } });
   });
 
   it("weist falsche Tokens ab", async () => {
@@ -198,7 +205,7 @@ describe("HTTP: Serien", () => {
     const { POST: seriesAbort } = await import("@/app/api/series/[id]/abort/route");
 
     const created = await createSeries(
-      request("POST", "/api/series", { body: { bestOf: 3, options: { seed: 50, tickMs: 50, timeoutMs: 400 }, label: "Finale" } }),
+      request("POST", "/api/series", { body: { bestOf: 3, options: { seed: 50, roundMs: 100, timeoutMs: 500 }, label: "Finale" } }),
     );
     expect(created.status).toBe(201);
     const { series, briefing } = (await created.json()) as { series: { id: string; version: number }; briefing: string };

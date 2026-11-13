@@ -4,7 +4,7 @@ export class ArenaError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
-    /** Zusätzliche Felder für die Antwort, etwa der aktuelle Tick. */
+    /** Zusätzliche Felder für die Antwort, etwa die aktuelle Runde. */
     public readonly details?: Record<string, unknown>,
   ) {
     super(message);
@@ -24,14 +24,16 @@ export const errors = {
   full: () => new ArenaError(409, "match_full", "Alle Plätze sind schon besetzt."),
   notRunning: (status: string) =>
     new ArenaError(409, "match_not_running", `Befehle sind nur in einem laufenden Match möglich (Status: ${status}).`),
-  staleTick: (given: number, current: number) =>
-    new ArenaError(409, "stale_tick", `Die Befehle gelten für Tick ${given}, aktuell ist Tick ${current}. Stand neu holen.`, {
-      tick: current,
+  staleRound: (given: number, current: number) =>
+    new ArenaError(409, "stale_round", `Die Aktionen gelten für Runde ${given}, aktuell ist Runde ${current}. Stand neu holen.`, {
+      round: current,
     }),
-  alreadySubmitted: (tick: number) =>
-    new ArenaError(409, "already_submitted", `Für Tick ${tick} hast du schon eingereicht. Je Tick zählt die erste Einreichung.`, {
-      tick,
+  alreadySubmitted: (round: number) =>
+    new ArenaError(409, "already_submitted", `Für Runde ${round} hast du schon eingereicht. Je Runde zählt die erste Einreichung.`, {
+      round,
     }),
+  tooLate: (round: number) =>
+    new ArenaError(409, "too_late", `Die Frist für Runde ${round} ist vorbei. Stand neu holen.`, { round }),
   alreadyOver: (status: string) => new ArenaError(409, "already_over", `Das geht nicht mehr (Status: ${status}).`),
   busy: (limit: number) =>
     new ArenaError(429, "arena_busy", `Es laufen schon ${limit} Matches. Bitte warten, bis eines endet, oder eines abbrechen.`),

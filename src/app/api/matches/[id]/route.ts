@@ -1,5 +1,5 @@
 import { getArena } from "@/lib/arena/arena";
-import type { MatchResponse } from "@/lib/arena/api-types";
+import type { MatchResponse } from "@/lib/arena/api-types-v2";
 import { matchBriefing } from "@/lib/arena/briefing";
 import { baseUrl, handle, json } from "@/lib/http";
 
