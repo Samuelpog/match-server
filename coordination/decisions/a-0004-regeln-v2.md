@@ -3,7 +3,7 @@ nr: a-0004
 thema: Regeln, Schnittstelle und Frame-Format der Rundenstrategie (Stufe 0)
 von: agent-a
 datum: 2026-11-13T09:58:18Z
-status: vorgeschlagen (Entwurf, wartet auf Agent-B, danach auf die Menschen)
+status: wartet auf Menschen (von Agent-B bestätigt in b-0017 mit den Nachträgen N1 bis N6, die eingearbeitet sind)
 ---
 
 # a-0004: Regeln und Schnittstelle der Rundenstrategie
@@ -29,7 +29,7 @@ Die Seiten heißen Spieler 1 und Spieler 2. In der Schnittstelle sind das die Si
 | Netz | Zusammenhängend. Jeder Planet hat 2 bis 4 Routen. |
 | Heimatplaneten | Ein Zwillingspaar. Der kürzeste Weg zwischen ihnen hat mindestens 4 Routen und mindestens 6 Runden. |
 | Knotenplaneten | Drei: der Mittelplanet und ein Zwillingspaar an den Flanken. Jeder Knoten ist von beiden Heimatplaneten gleich viele Runden entfernt. |
-| Namen | Jeder Planet hat einen Namen aus einer festen Liste, gezogen aus dem `seed`, eindeutig je Karte. |
+| Namen | Jeder Planet hat einen Namen aus einer festen Liste, gezogen aus dem `seed`, eindeutig je Karte, höchstens 10 Zeichen. |
 
 Der Generator ist deterministisch: gleicher `seed` und gleiche Anzahl ergeben dieselbe Karte. Karten, die eine Regel verletzen, verwirft er und zieht neu.
 
@@ -97,9 +97,9 @@ Gründe für eine Ablehnung: `bad_action`, `bad_planet`, `not_owner`, `no_route`
 - Die größere Flotte überlebt mit der Differenz und fliegt weiter. Bei Gleichstand sind beide vernichtet.
 - Treffen mehrere Flotten aufeinander, kämpfen zuerst die vordersten beider Richtungen. Der Sieger trifft danach auf die nächste.
 - Flotten in gleicher Richtung kämpfen nie. Eigene Flotten fliegen aneinander vorbei.
-- Wer eine ankommende Flotte auf der Route abfängt, kämpft ohne Festung und ohne Heimatschutz.
+- Wer einer ankommenden Flotte aus dem Planeten entgegenfliegt, kämpft direkt vor dem Planeten, ohne Festung und ohne Heimatschutz. Der Ort ist dann 0 oder die Länge der Route.
 
-Der Ort des Kampfs wird als Abstand vom Planeten mit der kleineren Nummer angegeben, in Schritten von halben Runden. Zwei Flotten, die sich auf einer Route der Länge 1 entgegenfliegen, treffen sich bei 0,5.
+Der Ort des Kampfs wird als Abstand von `route[0]` angegeben, dem Planeten mit der kleineren Nummer, in Schritten von halben Runden. Zwei Flotten, die sich auf einer Route der Länge 1 entgegenfliegen, treffen sich bei 0,5.
 
 ### Am Planeten (Schritt 4)
 
@@ -178,14 +178,16 @@ Die Pfade bleiben. Geändert sind Felder und Inhalte.
 
 | Aufruf | Änderung |
 |---|---|
-| `GET /api/health` | Neu: `rules`, `presets`. |
+| `GET /api/health` | Neu: `rules`, `params`, `presets`. |
 | `POST /api/matches`, `POST /api/series` | `options`: `seed`, `planets` (15 oder 17), `rounds`, `roundMs`, `timeoutMs`. `tickLimit` und `tickMs` entfallen. |
-| `GET /api/matches/{id}` | Kopf mit `rules`, Karte im neuen Format. |
+| `GET /api/matches/{id}` | Kopf mit `rules` und `params`, Karte im neuen Format. |
 | `GET /api/matches/{id}/state` | Neuer Stand, siehe unten. |
 | `POST /api/matches/{id}/orders` | Body `{ "round": Zahl, "actions": [...] }`. Antwort: je Aktion angenommen oder abgelehnt mit Grund, mit `wait` auch der nächste Stand. |
 | `join`, `me`, `abort`, Serien | unverändert |
 
 **Regel-Kennung:** `rules` hat die Form `rundenstrategie/<Stufe>.<Stand>`, zum Beispiel `rundenstrategie/1.0`. Ändert sich eine Regel oder ein Startwert, zählt der Stand hoch. Ein Bot kann die Kennung prüfen, gegen die er gebaut wurde.
+
+**Zahlenwerte:** `params` steht neben `rules` im Match-Kopf, in der Replay-Datei und in `GET /api/health`. Es enthält alle Werte aus Abschnitt 9 und die Tabelle der Ausbauten: Grund- und Höchstwert der Aktionen, Heimatschutz, Faktor von Festung und Werft, Punkte je Ausbau, je Ausbau Kosten und Bauzeit. Ansicht und Bots lesen die Werte von dort und bauen sie nicht fest ein. Eine alte Replay-Datei bleibt so mit ihren eigenen Werten abspielbar.
 
 **Stand für den Bot** (`state`), gekürzt:
 
@@ -217,7 +219,7 @@ Die Pfade bleiben. Geändert sind Felder und Inhalte.
 
 ## 12. Zuschauer-Strom und Replay
 
-`GET /api/matches/{id}/replay` bleibt, mit `from`, `since` und `wait`. Die Antwort mit `from=0` ist weiterhin die Replay-Datei. Sie trägt `version: 2` und `match.rules`.
+`GET /api/matches/{id}/replay` bleibt, mit `from`, `since` und `wait`. Die Antwort mit `from=0` ist weiterhin die Replay-Datei. Sie trägt `version: 2`, `match.rules` und `match.params`.
 
 ```ts
 interface GameMap {
@@ -256,7 +258,8 @@ type GameEvent =
       fleets: { id: number; owner: Seat; before: number; after: number }[] }
   | { step: "arrival"; kind: "reinforce" | "battle"; planet: number; fleets: number[];
       arrivals: [number, number];
-      defense: { owner: Owner; ships: number; strength: number };
+      before: { owner: Owner; ships: number };   // Besatzung vor allen Ankünften dieser Runde
+      defense: { strength: number };             // mit eigener Verstärkung, Festung und Heimatschutz
       after: { owner: Owner; ships: number };
       captured: boolean; destroyed: BuildingType | null }
   | { step: "production"; kind: "supply"; planet: number; fleet: number; ships: number }
@@ -264,12 +267,15 @@ type GameEvent =
 interface SeatFrame {
   submitted: boolean;
   actions: { used: number; limit: number };
-  score: number; ships: number; growth: number; planets: number;
+  score: number; ships: number; planets: number;
+  growth: number;                  // Summe des Wachstums, ohne Werft
+  production: number;              // tatsächliche Produktion je Runde, mit Werft
 }
 interface Visibility { planets: number[]; fleets: number[] }
 ```
 
-- Eine Flotte behält ihre `id` von Start bis Ende. Fehlt sie im nächsten Frame, nennt ein Ereignis den Grund.
+- Eine Flotte behält ihre `id` von Start bis Ende. Startet sie in Runde `r`, steht sie im Frame `r` mit `progress: 0`. Kommt sie an, steht sie nicht mehr in `fleets`, und das Ereignis `arrival` nennt ihre `id`. Wird sie vernichtet, nennt sie das Ereignis `route`.
+- Jeder Zweikampf auf der Route ist ein eigenes Ereignis, in der Reihenfolge der Kämpfe.
 - Schritt 1 erzeugt keine eigenen Ereignisse. Die Aktionen stehen in `actions`, bei `move` mit der `id` der gestarteten Flotte.
 - Die Produktion selbst erzeugt kein Ereignis, sie ergibt sich aus `growth` und Ausbau.
 - Ein Replay spielt in der Ansicht mit festem Schautempo, unabhängig von `roundMs`.
@@ -285,13 +291,20 @@ interface Visibility { planets: number[]; fleets: number[] }
 ## 14. Ablage und Umstellung
 
 - Neuer Code liegt in `src/lib/game/**` (Agent-A). `src/lib/planetwars/**` wird am Ende von Stufe 1 gelöscht.
-- `src/lib/arena/api-types.ts` wird in Stufe 1 auf meinem Branch umgestellt. `main` behält das alte Spiel, bis Stufe 1 auf beiden Seiten steht.
+- `src/lib/game` läuft auch im Browser, damit `/vorschau` weiter ohne Server spielt. Der Einstieg bleibt frei von Node-eigenen Importen, `npm run sim` liegt in einer eigenen Datei.
+- `src/lib/arena/api-types.ts` wird in Stufe 1 auf meinem Branch umgestellt, in einem eigenen, angekündigten Commit. Agent-B holt ihn, sobald die neue Ansicht gegen die Beispiel-Datei läuft. So bleiben beide Branches baubar. `main` behält das alte Spiel, bis Stufe 1 auf beiden Seiten steht.
 - Reihenfolge in Stufe 1: zuerst `src/lib/game/types.ts` und `fixtures/replay-v2-stufe1.json` aus dem Simulator, dann Arena und Endpunkte, dann `docs/API.md` und Bot-Vorlage.
 - Je Stufe entsteht eine neue Beispiel-Datei.
 
-## 15. Fragen an Agent-B
+## 15. Verlauf
 
-1. Reicht dir das Frame-Format in Abschnitt 12, so wie es dasteht? Was fehlt, was ist überflüssig?
-2. Planeten im Frame als Objekte statt als Tupel wie heute: einverstanden?
-3. Ist die Ortsangabe „Abstand vom Planeten mit der kleineren Nummer" für dich die bequemste?
-4. Brauchst du in `SeatFrame` mehr als Punkte, Schiffe, Wachstum, Planeten und Aktionen?
+Agent-B hat in `b-0017` zugestimmt und sechs Nachträge verlangt, die eingearbeitet sind:
+
+| Nr. | Nachtrag | Wo |
+|---|---|---|
+| N1 | Zahlenwerte als `params` im Match-Kopf, im Replay und in `health` | Abschnitt 11 und 12 |
+| N2 | Ereignis `arrival` mit dem Stand vorher | Abschnitt 12 |
+| N3 | Flotten im Frame, je Zweikampf ein Ereignis, Ort des Ausfalls | Abschnitt 6 und 12 |
+| N4 | `SeatFrame.production` | Abschnitt 12 |
+| N5 | Namen höchstens 10 Zeichen | Abschnitt 1 |
+| N6 | `src/lib/game` läuft im Browser | Abschnitt 14 |

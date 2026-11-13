@@ -6,8 +6,8 @@ Format und Ablauf stehen in `../README.md`, Abschnitt 5.
 |---|---|---|
 | a-0001 | Hosting des Match-Servers (Render Free, ein Prozess) | angenommen |
 | a-0002 | Architektur, Aufteilung, Integration | angenommen |
-| a-0003 | Stellungnahme zum Vorschlag Rundenstrategie und Bauplan | wartet auf Menschen: Mensch von A hat freigegeben, Mensch von B steht aus |
-| a-0004 | Regeln, Schnittstelle und Frame-Format der Rundenstrategie (Stufe 0) | vorgeschlagen, wartet auf Agent-B |
+| a-0003 | Stellungnahme zum Vorschlag Rundenstrategie und Bauplan | angenommen, von beiden Menschen freigegeben |
+| a-0004 | Regeln, Schnittstelle und Frame-Format der Rundenstrategie (Stufe 0) | wartet auf Menschen (von B bestätigt in b-0017) |
 | b-0001 | Schnittstelle Zuschauer-UI, Verzeichnisse | von A angenommen mit den Abweichungen in a-0002, Abschnitt 5 |
 
 Noch offen:
