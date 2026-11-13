@@ -17,5 +17,5 @@
 | R0 | Vorschlag Rundenstrategie bewerten, mit Agent-B abstimmen, Umsetzung planen (`a-0017`, Ergebnis in `decisions/a-0003`) | erledigt, wartet auf Menschen |
 | R1 | Nach Freigabe: `a-0004-regeln-v2` (Regeln mit Startwerten, Schnittstelle, Frame-Format) | erledigt, angenommen |
 | R2 | Stufe 1: `src/lib/game/**`, Beispiel-Replay, Arena und Endpunkte, Bots, Simulator, Bot-Vorlage, `docs/API.md` (`a-0025`, `a-0026`) | erledigt |
-| R3 | Abschluss Stufe 1: `api-types.ts` auf v2 verweisen, `src/lib/planetwars/**` löschen | wartet auf die neue Ansicht von Agent-B |
+| R3 | Abschluss Stufe 1: `api-types.ts` auf v2 verweisen, `src/lib/planetwars/**` löschen | erledigt (`a-0027`) |
 | R4 | Verfehlte Kriterien (frühes Ende, Führungswechsel) den Menschen vorlegen | offen |

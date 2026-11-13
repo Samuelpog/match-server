@@ -7,7 +7,6 @@ Regeln, Takt und alle Endpunkte: [`docs/API.md`](docs/API.md).
 ## Aufbau
 
 - `src/lib/game/`: die Engine der Rundenstrategie. Kartengenerator mit Routennetz, Auflösung einer Runde, Wertung, eingebaute Bots, `simulate()`. Reiner Code, läuft in Node und im Browser.
-- `src/lib/planetwars/`: die Engine des alten Spiels. Wird am Ende von Stufe 1 gelöscht, sobald die neue Ansicht steht.
 - `src/lib/arena/`: der Match-Server. Sitze, Tokens, Takt mit Frist, Aufzeichnung, Warten per Ereignis. `api-types-v2.ts` beschreibt alle JSON-Formen.
 - `src/app/api/`: REST-Endpunkte, dünn über der Arena.
 - `src/app/`, `src/components/`, `src/lib/viewer/`, `src/lib/client/`: Lobby, Live-Ansicht und Replay-Spieler.

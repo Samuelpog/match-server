@@ -4,7 +4,7 @@
   "branch": "claude/peaceful-fermat-rusbce",
   "partner-branch": "claude/funny-ramanujan-guacob",
   "handshake": "verbunden",
-  "gelesen-bis": "b-0019",
-  "wartet-auf": "Meldung von Agent-B, dass die neue Ansicht nichts Altes mehr importiert; danach Abschluss-Commit von Stufe 1",
-  "aktualisiert": "2026-11-13T11:08:10Z"
+  "gelesen-bis": "b-0020",
+  "wartet-auf": "Entscheidung der Menschen über den Pull Request von Stufe 1 nach main",
+  "aktualisiert": "2026-11-13T11:26:34Z"
 }
