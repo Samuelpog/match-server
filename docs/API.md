@@ -68,7 +68,7 @@ Die Reihenfolge der Flotten spielt keine Rolle. Ein Angreifer braucht also mehr 
 - **Warten:** Endpunkte mit `wait=<Sekunden>` halten die Verbindung, bis es etwas Neues gibt, höchstens 25 Sekunden. Gibt es nichts Neues, kommt `204` ohne Body.
 - **Spieler-Token:** `Authorization: Bearer <token>`.
 - **Arena-Schlüssel:** Ist beim Server `ARENA_KEY` gesetzt, brauchen Anlegen und Abbrechen den Kopf `X-Arena-Key: <schlüssel>`. `GET /api/health` meldet das in `arenaKeyRequired`. Lesen und Beitreten gehen immer ohne.
-- **Schlafmodus:** Der Server schläft nach 15 Minuten ohne Anfrage ein und vergisst dabei alles. Der erste Aufruf danach kann eine Minute dauern. Vor dem Anlegen `GET /api/health` aufrufen und bei Zeitüberschreitung wiederholen. `bootId` ändert sich bei jedem Neustart.
+- **Schlafmodus:** Der Server schläft nach 15 Minuten ohne Anfrage ein und vergisst dabei alles. Der erste Aufruf danach hängt, bis der Prozess gestartet ist, und endet dann normal: gemessen 23 Sekunden, bis zu einer Minute ist möglich. Vor dem Anlegen `GET /api/health` aufrufen und bei Zeitüberschreitung wiederholen. `bootId` ändert sich bei jedem Neustart.
 
 ## 4. Endpunkte
 
