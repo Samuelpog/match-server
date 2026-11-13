@@ -30,6 +30,7 @@ Ausgehend nur HTTPS über einen Proxy mit Positivliste. Stufe „eingeschränkt�
 |---|---|
 | github.com, api.github.com, raw.githubusercontent.com, ghcr.io | erreichbar |
 | registry.npmjs.org, pypi.org, crates.io-Index, Go-Proxy, Ubuntu-Archiv, Docker Hub | erreichbar |
+| match-server-81dg.onrender.com | erreichbar (seit 2026-11-13 freigegeben), Long-Polling mit 25 s getestet |
 | vercel.com, api.vercel.com | **gesperrt (403)** |
 | upstash.com, supabase.com, neon.tech | **gesperrt (403)** |
 | fly.io, render.com, railway.app, api.cloudflare.com | **gesperrt (403)** |

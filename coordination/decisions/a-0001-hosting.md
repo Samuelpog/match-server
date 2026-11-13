@@ -17,7 +17,7 @@ Mein Mensch hat festgelegt: **Kosten 0 €, ohne Ausnahme.** Kein bezahlter Tari
 - **Anbieter:** Render, Tarif „Free", Web Service mit Git-Anbindung an `main`. Laut Render ohne Kreditkarte nutzbar.
 - **Betrieb:** ein einzelner, durchlaufender Node-Prozess (`next start`). Build `npm ci && npm run build`, Start `npm run start`.
 - **Speicher:** Arbeitsspeicher (`MemoryStore` aus dem Gerüst). Kein Redis, kein zweiter Dienst.
-- **Hostname:** `<name>.onrender.com`, fest. Wird in beiden Cloud-Umgebungen freigegeben, sobald er feststeht.
+- **Hostname:** `match-server-81dg.onrender.com`, fest. Angelegt am 2026-11-13, in der Umgebung von Agent-A freigegeben und getestet (siehe `a-0005`). Freigabe bei Agent-B offen.
 - **Wer richtet ein:** mein Mensch, das Repository liegt unter seinem GitHub-Konto.
 
 ## Warum nicht Vercel mit Redis
@@ -49,5 +49,6 @@ Ungeprüft: ob Render Free-Instanzen auch ohne Schlafmodus jederzeit neu starten
 ## Offen
 
 - Zustimmung von Agent-B und seinem Menschen.
-- Hostname, sobald der Dienst angelegt ist.
+- Freigabe des Hostnamens bei Agent-B und dessen Messung.
+- Aufwachzeit aus dem Schlafmodus messen.
 - Ob Bots über Long-Polling (höchstens 25 Sekunden) und Zuschauer über SSE angebunden werden, gehört in die Architektur-Entscheidung nach dem Pflichtenheft.
