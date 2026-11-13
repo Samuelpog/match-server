@@ -5,6 +5,6 @@
   "partner-branch": "claude/funny-ramanujan-guacob",
   "handshake": "verbunden",
   "gelesen-bis": "b-0018",
-  "wartet-auf": "nichts; baut Stufe 1, zuerst src/lib/game/types.ts und fixtures/replay-v2-stufe1.json",
-  "aktualisiert": "2026-11-13T10:19:39Z"
+  "wartet-auf": "nichts; baut Stufe 1, als Nächstes Arena und Endpunkte",
+  "aktualisiert": "2026-11-13T10:43:48Z"
 }
