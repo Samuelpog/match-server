@@ -7,9 +7,9 @@ export const SPEEDS = [0.5, 1, 2, 4, 8, 16] as const;
  * Dauer einer Runde beim Abspielen mit Tempo 1. Ein Replay läuft in diesem
  * festen Schautempo, egal wie schnell das Match gespielt wurde.
  */
-export const VIEW_ROUND_MS = 3000;
+export const VIEW_ROUND_MS = 1500;
 /** Länger dauert die Auflösung einer Runde auch live nicht. Danach steht das Bild, bis die nächste Runde kommt. */
-const MAX_LIVE_ROUND_MS = 4500;
+const MAX_LIVE_ROUND_MS = 2500;
 /** Ab diesem Rückstand springt die Live-Ansicht, statt aufzuholen. */
 const SNAP_LAG = 6;
 
@@ -57,7 +57,7 @@ export class ArenaController {
   private metaVersion = 0;
 
   constructor(map: ArenaMap, meta: MatchMeta) {
-    this.buffer = new ReplayBuffer(map);
+    this.buffer = new ReplayBuffer(map, meta.params);
     this.metaValue = meta;
     // Ein laufendes Match beginnt live, ein beendetes als Replay von vorn.
     this.following = !isOver(meta.status);

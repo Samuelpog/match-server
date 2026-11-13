@@ -31,6 +31,51 @@ function useShortcuts(controller: ArenaController) {
   }, [controller]);
 }
 
+/** Was die Zeichen auf der Karte bedeuten. */
+function Legend() {
+  const item = "flex items-center gap-0.5 whitespace-nowrap";
+  const badge = "inline-flex h-2 w-2 items-center justify-center rounded-full bg-ink text-[9px] leading-none font-bold text-space";
+  return (
+    <ul aria-label="Zeichen auf der Karte" className="flex flex-wrap gap-x-2 gap-y-0.5 px-0.5 text-xs text-muted">
+      <li className={item}>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M6 0 L11 6 L6 9 L1 6 Z" fill="var(--color-ink)" />
+        </svg>
+        Heimatplanet
+      </li>
+      <li className={item}>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M6 2 L10 6 L6 10 L2 6 Z" fill="var(--color-ink)" />
+        </svg>
+        Knotenplanet
+      </li>
+      <li className={item}>
+        <svg width="26" height="12" viewBox="0 0 26 12" aria-hidden="true">
+          <line x1="1" y1="6" x2="25" y2="6" stroke="var(--color-muted)" strokeWidth="1.25" />
+          <circle cx="9" cy="6" r="2" fill="var(--color-muted)" />
+          <circle cx="17" cy="6" r="2" fill="var(--color-muted)" />
+        </svg>
+        Route, jeder Abschnitt eine Runde
+      </li>
+      <li className={item}>
+        <span className={badge}>W</span> Werft
+      </li>
+      <li className={item}>
+        <span className={badge}>F</span> Festung
+      </li>
+      <li className={item}>
+        <span className={badge}>K</span> Kommandozentrale
+      </li>
+      <li className={item}>
+        <svg width="26" height="12" viewBox="0 0 26 12" aria-hidden="true">
+          <line x1="1" y1="6" x2="25" y2="6" stroke="var(--color-ink)" strokeWidth="2.5" strokeDasharray="6 4" />
+        </svg>
+        Nachschublinie
+      </li>
+    </ul>
+  );
+}
+
 /**
  * Die ganze Zuschauer-Ansicht eines Matches: Schlachtfeld, Kräfteverhältnis,
  * Spieler, Rundenprotokoll, Zeitleiste. Woher die Frames kommen (Server, Datei,
@@ -66,6 +111,7 @@ export function Arena({
             {overlay}
             <ResultBanner controller={controller} actions={resultActions} />
           </Battlefield>
+          <Legend />
           <Timeline controller={controller} />
         </div>
         <RoundLog controller={controller} />

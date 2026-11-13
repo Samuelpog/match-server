@@ -51,8 +51,9 @@ function Actions({ map, frame, player }: { map: ArenaMap; frame: Frame; player: 
   );
 }
 
-function describeEvent(meta: MatchMeta, map: ArenaMap, event: GameEvent): React.ReactNode {
+function describeEvent(meta: MatchMeta, map: ArenaMap, event: GameEvent, supply: ReadonlySet<number>): React.ReactNode {
   if (event.kind === "route") {
+    const convoy = event.fleets.some((fleet) => supply.has(fleet.id));
     const survivor = event.fleets.find((fleet) => fleet.after > 0);
     const where =
       event.at === 0
@@ -62,7 +63,7 @@ function describeEvent(meta: MatchMeta, map: ArenaMap, event: GameEvent): React.
           : `zwischen ${planetName(map, event.a)} und ${planetName(map, event.b)}`;
     return (
       <>
-        Kampf {where}: {event.fleets.map((fleet) => number.format(fleet.before)).join(" gegen ")}.{" "}
+        {convoy ? "Nachschub abgefangen" : "Kampf"} {where}: {event.fleets.map((fleet) => number.format(fleet.before)).join(" gegen ")}.{" "}
         {survivor ? (
           <>
             <span className={`font-semibold ${OWNER_TEXT[survivor.owner]}`}>{ownerName(meta, survivor.owner)}</span> behält{" "}
@@ -114,7 +115,7 @@ function describeEvent(meta: MatchMeta, map: ArenaMap, event: GameEvent): React.
  */
 export function RoundLog({ controller }: { controller: ArenaController }) {
   const meta = useMeta(controller);
-  const { showing } = usePlayback(controller);
+  const { round: settled, showing } = usePlayback(controller);
   const { buffer } = controller;
   const map = buffer.map;
 
@@ -136,7 +137,10 @@ export function RoundLog({ controller }: { controller: ArenaController }) {
       ) : (
         <ol className="flex min-h-0 flex-col overflow-y-auto xl:max-h-[calc(74vh+110px)]">
           {rounds.map((frame) => {
-            const events = frame.events.filter((event) => event.kind !== "reinforce");
+            // Solange die Runde noch aufgelöst wird, stehen nur die Befehle da. Der Ausgang folgt, wenn man ihn gesehen hat.
+            const events = frame.round <= settled ? frame.events.filter((event) => event.kind !== "reinforce") : [];
+            const supply = new Set<number>();
+            for (const track of buffer.transitions[frame.round]?.tracks ?? []) if (track.supply) supply.add(track.id);
             return (
               <li key={frame.round} className="border-t border-line py-0.5 text-sm first:border-t-0">
                 <button
@@ -158,7 +162,7 @@ export function RoundLog({ controller }: { controller: ArenaController }) {
                       <span aria-hidden="true" className="text-center text-muted">
                         ✦
                       </span>
-                      <span>{describeEvent(meta, map, event)}</span>
+                      <span>{describeEvent(meta, map, event, supply)}</span>
                     </li>
                   ))}
                 </ul>

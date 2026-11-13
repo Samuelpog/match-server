@@ -204,6 +204,31 @@ describe("Puffer und Rundenablauf", () => {
     expect(buffer.captures.some((event) => event.round === 72 && event.planet === 1 && event.after.owner === 1)).toBe(true);
   });
 
+  it("zieht Baukosten sofort ab und kennt Baustellen (Stufe 2)", () => {
+    const replay = structuredClone(fixture);
+    replay.match.params.buildings = { fortress: { cost: 15, time: 3, hubOnly: false } };
+    replay.frames[20].actions[0].push({ action: { type: "build", planet: 0, building: "fortress" }, ok: true });
+    replay.frames[20].actions[1].push({ action: { type: "build", planet: 5, building: "command" }, ok: false, code: "not_hub" });
+    for (let round = 20; round < replay.frames.length; round++) {
+      replay.frames[round].planets[0].building = { type: "fortress", ready: 23 };
+    }
+    replay.frames[23].events.push({ step: "build", kind: "completed", planet: 0, building: "fortress" });
+
+    const controller = controllerFromReplay(replay);
+    const { buffer } = controller;
+    const begin = buffer.transitions[20]!;
+    expect(begin.started.has(0)).toBe(true);
+    // Die abgelehnte Aktion beginnt keinen Bau und kostet nichts.
+    expect(begin.started.has(5)).toBe(false);
+    const moved = fixture.frames[20].actions[0]
+      .filter((record) => record.ok && (record.action as { from?: number }).from === 0)
+      .reduce((sum, record) => sum + (record.action as { ships: number }).ships, 0);
+    expect(begin.launched.get(0)).toBe(moved + 15);
+    expect(buffer.transitions[23]!.built).toEqual([{ kind: "built", round: 23, planet: 0, building: "fortress" }]);
+    expect(buffer.frames[20].actions[0].at(-1)).toMatchObject({ kind: "build", from: 0, building: "fortress", ok: true });
+    expect(buffer.frames[20].actions[1].at(-1)).toMatchObject({ kind: "build", ok: false, code: "not_hub" });
+  });
+
   it("übergeht bekannte Runden und meldet Lücken", () => {
     const buffer = new ReplayBuffer(toMap(fixture.map));
     const frames = fixture.frames.map((frame) => toFrame(frame));
@@ -335,8 +360,8 @@ describe("Abspielkopf", () => {
     expect(controller.pos).toBeGreaterThan(2);
     expect(controller.pos).toBeLessThan(2.1);
     expect(controller.getState()).toMatchObject({ round: 2, showing: 3 });
-    // Länger als viereinhalb Sekunden dauert die Auflösung auch bei acht Sekunden je Runde nicht.
-    expect(controller.roundViewMs).toBeLessThanOrEqual(4500);
+    // Länger als zweieinhalb Sekunden dauert die Auflösung auch bei acht Sekunden je Runde nicht.
+    expect(controller.roundViewMs).toBeLessThanOrEqual(2500);
     for (let now = 20_150; now <= 26_000; now += 50) controller.advance(now);
     expect(controller.pos).toBe(3);
   });

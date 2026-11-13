@@ -102,13 +102,13 @@ type Tempo = "turnier" | "zuegig" | "test";
 
 /** Takt und Frist je Tempo. „Turnier" und „Test" gibt der Server vor, „Zügig" liegt dazwischen und ist zum Zuschauen gedacht. */
 function tempoOptions(health: HealthResponse, tempo: Tempo): Pick<MatchOptions, "roundMs" | "timeoutMs"> {
-  if (tempo === "zuegig") return { roundMs: 2000, timeoutMs: 2000 };
+  if (tempo === "zuegig") return { roundMs: 1000, timeoutMs: 1500 };
   return health.presets[tempo];
 }
 
 const TEMPOS: { id: Tempo; label: string; hint: string }[] = [
-  { id: "turnier", label: "Turnier", hint: "Der Takt für das Turnier, mit Zeit zum Mitlesen." },
   { id: "zuegig", label: "Zügig", hint: "Zum Zuschauen und Vorführen." },
+  { id: "turnier", label: "Turnier", hint: "Der Takt für das Turnier, mit Zeit zum Mitlesen." },
   { id: "test", label: "Test", hint: "So schnell die Bots antworten. Zum Testen, kaum zum Zuschauen." },
 ];
 
@@ -179,7 +179,7 @@ function CreatePanel({ health, seriesSupported }: { health: HealthResponse; seri
   const [mode, setMode] = useState<Mode>("match");
   const [players, setPlayers] = useState<[string, string]>([OPEN, OPEN]);
   const [label, setLabel] = useState("");
-  const [tempo, setTempo] = useState<Tempo>("turnier");
+  const [tempo, setTempo] = useState<Tempo>("zuegig");
   const [options, setOptions] = useState({ seed: "", planets: "", rounds: "", roundMs: "", timeoutMs: "" });
   const [key, setKey] = useState(() => getArenaKey());
   const [busy, setBusy] = useState<"create" | "demo" | null>(null);

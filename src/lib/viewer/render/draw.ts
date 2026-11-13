@@ -1,5 +1,5 @@
 import type { ReplayBuffer, Track, Transition } from "../buffer";
-import type { Frame, Owner, Params, PlanetDef, PlanetEvent, PlanetState, Player, RouteBattle } from "../model";
+import type { BuildEvent, BuildingType, Frame, Owner, Params, PlanetDef, PlanetEvent, PlanetState, Player, RouteBattle } from "../model";
 import { TIMING } from "../phases";
 import type { Layout } from "./layout";
 import type { Starfield } from "./starfield";
@@ -57,6 +57,8 @@ export function drawScene(
   const next = transition ? buffer.frames[base + 1] : previous;
 
   drawRoutes(ctx, layout, theme, buffer);
+  // Nachschublinien gelten ab dem Ende der Runde, in der sie gesetzt wurden.
+  drawSupplyLines(ctx, layout, theme, transition && fraction >= TIMING.production ? next : previous, scene);
   if (transition) drawOrders(ctx, layout, theme, transition, fraction);
   if (transition) drawPlanetEffects(ctx, layout, theme, transition.planetEvents, fraction, "below");
 
@@ -66,7 +68,11 @@ export function drawScene(
     let color = theme.owner[shown.state.owner];
     if (shown.blend) color = mix(theme.owner[shown.blend.from], theme.owner[shown.blend.to], easeOut(shown.blend.u));
     drawPlanet(ctx, layout, theme, i, planets[i], shown.state, color, scene.highlight === i);
+    if (shown.state.building) {
+      drawBuilding(ctx, layout, theme, i, shown.state, color, pos, scene.params);
+    }
   }
+  if (transition) for (const event of transition.built) drawBuilt(ctx, layout, theme, event, fraction);
 
   if (transition) {
     for (const track of transition.tracks) drawTrack(ctx, layout, theme, track, fraction);
@@ -169,6 +175,91 @@ interface ShownPlanet {
 
 const shownScratch: PlanetState = { owner: 0, ships: 0, building: null, supply: null };
 
+/** Wo das Zeichen für den Ausbau sitzt: rechts oben am Planeten. */
+function badgeAt(layout: Layout, index: number): { x: number; y: number; r: number } {
+  const r = layout.r[index];
+  const d = (r + 3) * Math.SQRT1_2;
+  return { x: layout.x[index] + d, y: layout.y[index] - d, r: Math.max(6.5, Math.min(9, r * 0.36)) };
+}
+
+const BUILDING_LETTER: Record<BuildingType, string> = { shipyard: "W", fortress: "F", command: "K", radar: "R" };
+
+/**
+ * Ausbau als kleines Zeichen mit Buchstabe: W Werft, F Festung, K
+ * Kommandozentrale, R Radar. Im Bau ist es hohl, und ein Bogen zeigt, wie
+ * weit der Bau ist. Fertig ist es in der Farbe des Besitzers gefüllt.
+ */
+function drawBuilding(
+  ctx: CanvasRenderingContext2D,
+  layout: Layout,
+  theme: ArenaTheme,
+  index: number,
+  state: PlanetState,
+  color: Rgb,
+  pos: number,
+  params: Params,
+): void {
+  const building = state.building;
+  if (!building) return;
+  const badge = badgeAt(layout, index);
+  const time = params.buildings[building.type]?.time ?? 0;
+  // Fertig wird ein Bau im letzten Schritt seiner Runde.
+  const done = pos >= building.ready - 1 + TIMING.production;
+  const progress = time > 0 ? Math.min(1, Math.max(0, 1 - (building.ready - 1 + TIMING.production - pos) / time)) : 1;
+
+  ctx.fillStyle = done ? rgba(mix(color, BLACK, 0.15)) : rgba(BLACK, 0.85);
+  ctx.beginPath();
+  ctx.arc(badge.x, badge.y, badge.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = 1.25;
+  ctx.strokeStyle = done ? rgba(BLACK, 0.9) : rgba(color, 0.45);
+  ctx.stroke();
+  if (!done) {
+    ctx.strokeStyle = rgba(mix(color, WHITE, 0.3));
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(badge.x, badge.y, badge.r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+    ctx.stroke();
+  }
+  ctx.font = `700 ${Math.round(badge.r * 1.25)}px ${theme.fontSans}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = done ? rgba(BLACK) : rgba(mix(color, WHITE, 0.5));
+  ctx.fillText(BUILDING_LETTER[building.type], badge.x, badge.y + 0.5);
+}
+
+/** Ein Bau wird fertig: kurzer Ring um das Zeichen. */
+function drawBuilt(ctx: CanvasRenderingContext2D, layout: Layout, theme: ArenaTheme, event: BuildEvent, f: number): void {
+  if (f < TIMING.production) return;
+  const u = within(f, TIMING.production, 1);
+  const badge = badgeAt(layout, event.planet);
+  ring(ctx, badge.x, badge.y, badge.r + 2 + 12 * easeOut(u) * layout.unit, WHITE, 0.9 * (1 - u), 2);
+}
+
+/**
+ * Nachschublinien als fließende Striche vom Planeten zum Ziel. Die Schiffe
+ * selbst fliegen als kleine Flotten ohne Zahl auf derselben Route.
+ */
+function drawSupplyLines(ctx: CanvasRenderingContext2D, layout: Layout, theme: ArenaTheme, frame: Frame, scene: Scene): void {
+  const flow = scene.reducedMotion ? 0 : (scene.now / 60) % 14;
+  ctx.lineCap = "butt";
+  for (let i = 0; i < frame.planets.length; i++) {
+    const state = frame.planets[i];
+    if (state.supply === null || state.owner === 0 || state.supply === i) continue;
+    const s = segment(layout, i, state.supply);
+    ctx.strokeStyle = rgba(theme.owner[state.owner], 0.6);
+    ctx.lineWidth = 2.5 * layout.unit;
+    ctx.setLineDash([8, 6]);
+    ctx.lineDashOffset = -flow;
+    ctx.beginPath();
+    ctx.moveTo(s.ax, s.ay);
+    ctx.lineTo(s.bx, s.by);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
+}
+
 /** Stand eines Planeten mitten in der Auflösung einer Runde. */
 function planetDuring(previous: Frame, next: Frame, transition: Transition, planet: number, f: number): ShownPlanet {
   const before = previous.planets[planet];
@@ -182,12 +273,15 @@ function planetDuring(previous: Frame, next: Frame, transition: Transition, plan
     const u = captured ? within(f, TIMING.planetSettle, TIMING.planetSettle + 0.16) : 1;
     return { state: after, blend: captured && u < 1 ? { from: event!.before.owner, to: event!.after.owner, u } : null };
   }
-  // Was losgeschickt wurde, fehlt auf dem Planeten, sobald die Flotte daneben erscheint.
-  const gone = f >= TIMING.launchFrom ? (transition.launched.get(planet) ?? 0) : 0;
-  if (gone === 0) return { state: before, blend: null };
+  // Was losgeschickt oder verbaut wurde, fehlt auf dem Planeten, sobald die Befehle erscheinen.
+  const acted = f >= TIMING.launchFrom;
+  const gone = acted ? (transition.launched.get(planet) ?? 0) : 0;
+  const begun = acted && transition.started.has(planet);
+  if (gone === 0 && !begun) return { state: before, blend: null };
   shownScratch.owner = before.owner;
   shownScratch.ships = Math.max(0, before.ships - gone);
-  shownScratch.building = before.building;
+  // Ein Bau, der in dieser Runde beginnt, ist sofort als Baustelle zu sehen.
+  shownScratch.building = begun ? (after.building ?? before.building) : before.building;
   shownScratch.supply = before.supply;
   return { state: shownScratch, blend: null };
 }

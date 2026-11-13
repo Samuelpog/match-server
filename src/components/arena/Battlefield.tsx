@@ -156,6 +156,9 @@ function PlanetHint({ controller, hover }: { controller: ArenaController; hover:
           {state.building.ready > frame.round ? `, fertig in Runde ${state.building.ready}` : ""}
         </span>
       ) : null}
+      {state.supply !== null ? (
+        <span className="tabular">Nachschub → {controller.buffer.map.planets[state.supply]?.name ?? "?"}</span>
+      ) : null}
       {inbound[0] + inbound[1] > 0 ? (
         <span className="tabular text-muted">
           Im Anflug: <span className="text-p1">{number.format(inbound[0])}</span> /{" "}

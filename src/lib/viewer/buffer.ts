@@ -1,4 +1,4 @@
-import type { ArenaMap, BuildEvent, Frame, PlanetEvent, Player, RouteBattle } from "./model";
+import type { ArenaMap, BuildEvent, Frame, Params, PlanetEvent, Player, RouteBattle } from "./model";
 
 /**
  * Der Weg einer Flotte durch eine Runde: wo sie beginnt, wie weit sie zieht,
@@ -32,8 +32,13 @@ export interface Transition {
   /** Die Runde, deren Auflösung gezeigt wird: der Weg von Frame `round - 1` zu Frame `round`. */
   round: number;
   tracks: Track[];
-  /** Schiffe, die in dieser Runde von einem Planeten gestartet sind. Schlüssel ist der Planet. */
+  /**
+   * Schiffe, die ein Planet gleich zu Beginn der Runde abgibt: gestartete
+   * Flotten und die Kosten eines Baus. Schlüssel ist der Planet.
+   */
   launched: Map<number, number>;
+  /** Planeten, auf denen in dieser Runde ein Bau beginnt. */
+  started: Set<number>;
   routeBattles: RouteBattle[];
   planetEvents: PlanetEvent[];
   built: BuildEvent[];
@@ -52,7 +57,11 @@ export class ReplayBuffer {
 
   private readonly routeLength = new Map<string, number>();
 
-  constructor(readonly map: ArenaMap) {
+  /** `params` nennt die Baukosten. Ohne sie zeigt die Ansicht den Abzug erst mit dem neuen Stand. */
+  constructor(
+    readonly map: ArenaMap,
+    private readonly params?: Params,
+  ) {
     for (const route of map.routes) this.routeLength.set(`${route.a}:${route.b}`, route.length);
   }
 
@@ -86,6 +95,7 @@ export class ReplayBuffer {
   private plan(previous: Frame, frame: Frame): Transition {
     const tracks = new Map<number, Track>();
     const launched = new Map<number, number>();
+    const started = new Set<number>();
     const after = new Map(frame.fleets.map((fleet) => [fleet.id, fleet]));
 
     for (const fleet of previous.fleets) {
@@ -109,6 +119,12 @@ export class ReplayBuffer {
     // Neue Flotten stehen in den Aktionen. Auch die, die noch vor dem Planeten vernichtet wurden.
     frame.actions.forEach((actions, side) => {
       for (const action of actions) {
+        if (action.ok && action.kind === "build" && action.from !== null && action.building) {
+          started.add(action.from);
+          const cost = this.params?.buildings[action.building]?.cost ?? 0;
+          if (cost > 0) launched.set(action.from, (launched.get(action.from) ?? 0) + cost);
+          continue;
+        }
         if (!action.ok || action.kind !== "move" || action.fleet === null) continue;
         if (action.from === null || action.to === null || action.ships === null) continue;
         launched.set(action.from, (launched.get(action.from) ?? 0) + action.ships);
@@ -182,7 +198,7 @@ export class ReplayBuffer {
       }
     }
 
-    return { round: frame.round, tracks: [...tracks.values()], launched, routeBattles, planetEvents, built };
+    return { round: frame.round, tracks: [...tracks.values()], launched, started, routeBattles, planetEvents, built };
   }
 
   /** Der Frame, der an Position `pos` gilt (abgerundet, auf den Puffer begrenzt). */
