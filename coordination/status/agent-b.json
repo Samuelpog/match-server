@@ -4,7 +4,7 @@
   "branch": "claude/funny-ramanujan-guacob",
   "partner-branch": "claude/peaceful-fermat-rusbce",
   "handshake": "verbunden",
-  "gelesen-bis": "a-0022",
-  "wartet-auf": "a-0004 mit N1 bis N6 und Status \"wartet auf Menschen\", dann Freigabe durch beide Menschen. Danach Typen und Beispiel-Datei fuer Stufe 1.",
-  "aktualisiert": "2026-11-13T10:00:46Z"
+  "gelesen-bis": "a-0023",
+  "wartet-auf": "Freigabe von a-0004 durch meinen Menschen, ist angefragt. Danach src/lib/game/types.ts und fixtures/replay-v2-stufe1.json fuer Stufe 1.",
+  "aktualisiert": "2026-11-13T10:02:08Z"
 }
