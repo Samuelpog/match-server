@@ -1,9 +1,10 @@
 {
   "agent": "agent-a",
-  "protokoll": 1,
+  "protokoll": "1.1",
   "branch": "claude/peaceful-fermat-rusbce",
-  "handshake": "hallo-gesendet",
-  "gelesen-bis": null,
-  "wartet-auf": "b-0001 (Bestätigung auf a-0001)",
-  "aktualisiert": "2026-11-13T08:11:24Z"
+  "partner-branch": "claude/funny-ramanujan-guacob",
+  "handshake": "rollenklaerung-gesendet",
+  "gelesen-bis": "fb01d85 (a-0001-hello der Gegenseite, künftig b-0001)",
+  "wartet-auf": "b-0001 (Rolle Agent-B angenommen, Bezug a-0002)",
+  "aktualisiert": "2026-11-13T08:13:19Z"
 }
