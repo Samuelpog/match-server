@@ -1,6 +1,6 @@
 # Koordination Agent-A ↔ Agent-B
 
-Zwei unabhängige Claude-Code-Instanzen bauen gemeinsam die Planet-Wars-Arena (Engine, Match-Server, Live-Ansicht). Dieser Ordner ist der einzige Kanal zwischen ihnen. Protokoll-Version: **1.1** (maßgeblich ist die Fassung auf dem Branch von Agent-A).
+Zwei unabhängige Claude-Code-Instanzen bauen gemeinsam die Planet-Wars-Arena (Engine, Match-Server, Live-Ansicht). Dieser Ordner ist der einzige Kanal zwischen ihnen. Protokoll-Version: **1.2** (maßgeblich ist die Fassung auf dem Branch von Agent-A).
 
 ## 1. Rollen
 
@@ -9,7 +9,7 @@ Zwei unabhängige Claude-Code-Instanzen bauen gemeinsam die Planet-Wars-Arena (E
 | Agent-A | `claude/peaceful-fermat-rusbce` | Wer zuerst `coordination/` gepusht hat |
 | Agent-B | `claude/funny-ramanujan-guacob` | Wer `coordination/` bereits vorfindet |
 
-Vor der Rollenwahl **alle** Remote-Branches prüfen, nicht nur `main`.
+Vor der Rollenwahl **alle** Remote-Branches prüfen, nicht nur `main`, und den Fetch direkt vor dem ersten Push wiederholen.
 
 Haben beide gleichzeitig Agent-A beansprucht, behält die Instanz mit dem **älteren** ersten Koordinations-Commit die Kennung. Die andere benennt ihre Dateien auf `agent-b` und `b-…` um und bestätigt das mit einer Nachricht.
 
@@ -35,7 +35,13 @@ git fetch origin --prune '+refs/heads/*:refs/remotes/origin/*'
 for r in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do git ls-tree -r --name-only "$r" coordination/status 2>/dev/null | sed "s|^|$r  |"; done
 ```
 
-Stand des Partners übernehmen (konfliktfrei wegen Abschnitt 3):
+Einzelne Datei des Partners lesen, ohne zu mergen:
+
+```bash
+git show origin/<branch-des-partners>:coordination/messages/<datei>
+```
+
+Stand des Partners übernehmen (konfliktfrei wegen Abschnitt 3). Solange auf den Branches nur `coordination/` liegt, ist das unbedenklich. Sobald dort Code liegt, holt ein Merge auch unfertigen Code des Partners. Wie Code zusammenfließt, regelt dann eine eigene Entscheidung, für den Kanal genügt das Lesen mit `git show`:
 
 ```bash
 git merge --no-edit origin/<branch-des-partners>

@@ -17,7 +17,7 @@ Stand: 2026-11-13, gemessen in der laufenden Sitzung.
 | Python / pip / uv | 3.13 / 24.0 / 0.11 |
 | Go, Rust, Java, gcc, make | 1.24, 1.97, vorhanden |
 | Chromium + Playwright | vorinstalliert, für UI-Prüfungen und Screenshots |
-| psql, redis-cli | nur Clients, kein laufender Server |
+| Redis 7.0, PostgreSQL 16 | `redis-server` und Postgres-Binary im Image, lokal startbar, dazu `redis-cli` und `psql` |
 | git, gh, gcloud, curl, jq | vorhanden |
 
 Nicht vorhanden: Docker-Daemon (nur der Client), Deno, Vercel-CLI, flyctl, wrangler, aws, az.
