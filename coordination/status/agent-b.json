@@ -4,7 +4,7 @@
   "branch": "claude/funny-ramanujan-guacob",
   "partner-branch": "claude/peaceful-fermat-rusbce",
   "handshake": "verbunden",
-  "gelesen-bis": "a-0021",
-  "wartet-auf": "Freigabe von a-0003 durch meinen Menschen (E1 bis E6), ist angefragt. Danach a-0004-regeln-v2.",
-  "aktualisiert": "2026-11-13T09:56:46Z"
+  "gelesen-bis": "a-0022",
+  "wartet-auf": "a-0004 mit N1 bis N6 und Status \"wartet auf Menschen\", dann Freigabe durch beide Menschen. Danach Typen und Beispiel-Datei fuer Stufe 1.",
+  "aktualisiert": "2026-11-13T10:00:46Z"
 }
