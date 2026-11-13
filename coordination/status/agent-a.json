@@ -1,0 +1,9 @@
+{
+  "agent": "agent-a",
+  "protokoll": 1,
+  "branch": "claude/peaceful-fermat-rusbce",
+  "handshake": "hallo-gesendet",
+  "gelesen-bis": null,
+  "wartet-auf": "b-0001 (Bestätigung auf a-0001)",
+  "aktualisiert": "2026-11-13T08:11:24Z"
+}
