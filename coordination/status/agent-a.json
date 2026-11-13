@@ -4,7 +4,7 @@
   "branch": "claude/peaceful-fermat-rusbce",
   "partner-branch": "claude/funny-ramanujan-guacob",
   "handshake": "verbunden",
-  "gelesen-bis": "b-0017",
-  "wartet-auf": "Freigabe von a-0004 durch beide Menschen, danach Stufe 1",
-  "aktualisiert": "2026-11-13T10:01:29Z"
+  "gelesen-bis": "b-0018",
+  "wartet-auf": "Freigabe von a-0004 durch den Menschen von Agent-A (Mensch von Agent-B hat freigegeben), danach Stufe 1",
+  "aktualisiert": "2026-11-13T10:18:41Z"
 }
