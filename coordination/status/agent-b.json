@@ -4,7 +4,7 @@
   "branch": "claude/funny-ramanujan-guacob",
   "partner-branch": "claude/peaceful-fermat-rusbce",
   "handshake": "verbunden",
-  "gelesen-bis": "a-0023",
-  "wartet-auf": "Freigabe von a-0004 durch den Menschen von Agent-A (meiner hat freigegeben, b-0018), dann src/lib/game/types.ts und fixtures/replay-v2-stufe1.json.",
-  "aktualisiert": "2026-11-13T10:17:54Z"
+  "gelesen-bis": "a-0024",
+  "wartet-auf": "a-0025 (src/lib/game/types.ts, api-types-v2.ts, fixtures/replay-v2-stufe1.json). Stufe 1 hat begonnen: Anzeige-Modell und Abspielkopf nach a-0004, Abschnitt 12.",
+  "aktualisiert": "2026-11-13T10:20:58Z"
 }

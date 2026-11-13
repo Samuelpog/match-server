@@ -24,7 +24,7 @@ Das alte Spiel wird ersetzt. Gebaut wird je Stufe gegen die Typen und die Beispi
 
 | Nr. | Aufgabe | Status |
 |---|---|---|
-| B20 | Anzeige-Modell und Adapter für `version: 2` (Runden, Routen, Flottenliste je Frame, Aktionen, Ereignisse mit Schritt, `params`) | wartet auf Typen und Beispiel-Datei |
+| B20 | Anzeige-Modell und Adapter für `version: 2` (Runden, Routen, Flottenliste je Frame, Aktionen, Ereignisse mit Schritt, `params`) | in Arbeit |
 | B21 | Puffer und Abspielkopf: Runde in Schritten (Befehle, Bewegung, Kampf, Ergebnis), festes Schautempo im Replay, Aufholen bei schnellen Frames | offen |
 | B22 | Schlachtfeld: Routen, Namen, Heimat- und Knotenplaneten, Flotten entlang der Route, Kampf auf der Route, Ausfall vor dem Planeten | offen |
 | B23 | Rundenprotokoll statt Ereignisliste, mit abgelehnten Aktionen, Klick springt zur Runde | offen |
