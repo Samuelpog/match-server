@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { replayFile } from "@/lib/arena/replay-file";
+import { DEMO_BOTS, generateMap, getBuiltinBot, simulate } from "@/lib/planetwars";
+import { parseReplayFile, toFrame, toMap, toMeta } from "./adapter";
 import { ReplayBuffer, share } from "./buffer";
 import { ArenaController } from "./controller";
-import { simulateFixture } from "./fixtures/simulate";
 import type { ArenaMap, Frame, MatchMeta } from "./model";
 
 const map: ArenaMap = {
@@ -190,21 +192,59 @@ describe("ArenaController", () => {
   });
 });
 
-describe("simulateFixture", () => {
-  it("erzeugt einen lückenlosen, wiederholbaren Verlauf mit Ergebnis", () => {
-    const a = simulateFixture({ seed: 3 });
-    const b = simulateFixture({ seed: 3 });
-    expect(a.frames.length).toBe(b.frames.length);
-    expect(a.frames.at(-1)).toEqual(b.frames.at(-1));
-    expect(a.meta.result).not.toBeNull();
-    const buffer = new ReplayBuffer(a.map);
-    for (const frame of a.frames) expect(buffer.append(frame)).toBe(true);
+describe("Adapter auf das Server-Format", () => {
+  const gameMap = generateMap({ seed: 11, planets: 24 });
+  const simulation = simulate({
+    map: gameMap,
+    bots: [getBuiltinBot(DEMO_BOTS[0])!.play, getBuiltinBot(DEMO_BOTS[1])!.play],
+    tickLimit: 200,
+  });
+  const file = replayFile({
+    id: "sim",
+    map: gameMap,
+    frames: simulation.frames,
+    result: simulation.result,
+    names: ["Eins", "Zwei"],
+    bots: [DEMO_BOTS[0], DEMO_BOTS[1]],
+    options: { tickLimit: 200 },
+  });
+
+  it("kommt bei Schiffen, Produktion und Planeten auf dieselben Summen wie die Engine", () => {
+    const buffer = new ReplayBuffer(toMap(file.map));
+    for (const frame of file.frames) expect(buffer.append(toFrame(frame))).toBe(true);
+    expect(buffer.lastTick).toBe(file.frames.length - 1);
+    file.frames.forEach((frame, t) => {
+      const stats = buffer.stats[t];
+      expect(stats.ships, `Schiffe in Tick ${t}`).toEqual([frame.players[0].ships, frame.players[1].ships]);
+      expect(stats.production).toEqual([frame.players[0].growth, frame.players[1].growth]);
+      expect(stats.planets).toEqual([frame.players[0].planets, frame.players[1].planets]);
+      expect(Math.min(...stats.inFlight)).toBeGreaterThanOrEqual(0);
+    });
     expect(buffer.captures.length).toBeGreaterThan(0);
-    // Kein Schiff geht verloren oder entsteht aus dem Nichts außer durch Produktion und Kampf.
-    for (const stats of buffer.stats) {
-      expect(stats.inFlight[0]).toBeGreaterThanOrEqual(0);
-      expect(stats.inFlight[1]).toBeGreaterThanOrEqual(0);
-    }
-    expect(buffer.stats.at(-1)!.inFlight[0] + buffer.stats.at(-1)!.inFlight[1]).toBeGreaterThanOrEqual(0);
+  });
+
+  it("übersetzt Besitzer, Flotten und Ergebnis", () => {
+    const first = toFrame(file.frames[0]);
+    expect(first.planets[file.map.homes[0]]).toEqual({ owner: 1, ships: file.map.initial[file.map.homes[0]][1] });
+    expect(first.planets[file.map.homes[1]].owner).toBe(2);
+    const launched = file.frames.find((frame) => frame.launches.length > 0)!;
+    const fleet = toFrame(launched).launches[0];
+    expect(fleet.launch).toBe(launched.t - 1);
+    expect(fleet.owner).toBe(launched.launches[0].owner + 1);
+    const meta = toMeta(file.match);
+    expect(meta.status).toBe("finished");
+    expect(meta.players[0]).toMatchObject({ name: "Eins", builtIn: true, joined: true });
+    expect(meta.result?.winner).toBe(simulation.result.winner === null ? 0 : simulation.result.winner + 1);
+  });
+
+  it("nimmt eine echte Replay-Datei an und lehnt kaputte mit Begründung ab", () => {
+    const copy = JSON.parse(JSON.stringify(file));
+    expect(parseReplayFile(copy).frames.length).toBe(file.frames.length);
+    expect(() => parseReplayFile({ ...copy, format: "anders" })).toThrow(/format/);
+    expect(() => parseReplayFile({ ...copy, frames: copy.frames.slice(1) })).toThrow(/Frame 0/);
+    expect(() => parseReplayFile(null)).toThrow(/kein JSON-Objekt/);
+    const broken = JSON.parse(JSON.stringify(file));
+    broken.frames[2].planets.pop();
+    expect(() => parseReplayFile(broken)).toThrow(/Frame 2/);
   });
 });

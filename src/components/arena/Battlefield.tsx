@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ArenaController } from "@/lib/viewer/controller";
 import { drawScene } from "@/lib/viewer/render/draw";
-import { computeLayout, planetAt, type Layout } from "@/lib/viewer/render/layout";
+import { computeLayout, mapAspect, planetAt, type Layout } from "@/lib/viewer/render/layout";
 import { createStarfield, type Starfield } from "@/lib/viewer/render/starfield";
 import { readTheme } from "@/lib/viewer/render/theme";
 import { number, ownerName, OWNER_TEXT } from "./format";
@@ -98,7 +98,7 @@ export function Battlefield({ controller, children }: { controller: ArenaControl
   }
 
   // Seitenverhältnis der Karte, in Grenzen, damit die Fläche auf jedem Bildschirm brauchbar bleibt.
-  const aspect = Math.min(2.1, Math.max(1.25, map.width / Math.max(1, map.height)));
+  const aspect = mapAspect(map);
 
   return (
     <div
@@ -106,7 +106,7 @@ export function Battlefield({ controller, children }: { controller: ArenaControl
       onPointerMove={onPointerMove}
       onPointerLeave={onPointerLeave}
       className="relative w-full overflow-hidden border border-line bg-space"
-      style={{ aspectRatio: String(aspect), maxHeight: "72vh", minHeight: 280 }}
+      style={{ aspectRatio: String(aspect), maxHeight: "74vh", minHeight: 280 }}
     >
       <canvas
         ref={canvasRef}

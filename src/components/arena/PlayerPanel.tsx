@@ -31,7 +31,7 @@ function Figure({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col">
       <dt className="label">{label}</dt>
-      <dd className="tabular text-base font-semibold">{value}</dd>
+      <dd className="tabular text-lg leading-none font-semibold">{value}</dd>
     </div>
   );
 }
@@ -39,14 +39,15 @@ function Figure({ label, value }: { label: string; value: string }) {
 /** Name, Verbindung, Zugstatus und Kennzahlen eines Spielers. */
 export function PlayerPanel({ controller, player }: { controller: ArenaController; player: Player }) {
   const meta = useMeta(controller);
-  const { tick } = usePlayback(controller);
+  const { tick, atEnd } = usePlayback(controller);
   const side = player - 1;
   const info = meta.players[side];
   const stats = controller.buffer.stats[tick];
   const frame = controller.buffer.frames[tick];
   const link = connection(meta, player);
   const move = turn(frame?.seats?.[side]);
-  const won = meta.result?.winner === player;
+  // Den Sieger erst zeigen, wenn der Abspielkopf am Ende steht: ein Replay soll nichts verraten.
+  const won = atEnd && meta.result?.winner === player;
   const mirrored = player === 2;
 
   return (
@@ -67,7 +68,7 @@ export function PlayerPanel({ controller, player }: { controller: ArenaControlle
         {move ? <span className={move.tone}>{move.text}</span> : null}
       </p>
       {stats ? (
-        <dl className={`grid grid-cols-2 gap-x-2 gap-y-0.5 xl:grid-cols-4 ${mirrored ? "sm:text-right" : ""}`}>
+        <dl className={`mt-auto grid grid-cols-2 gap-x-2 gap-y-1 ${mirrored ? "sm:text-right" : ""}`}>
           <Figure label="Planeten" value={number.format(stats.planets[side])} />
           <Figure label="Produktion" value={`+${number.format(stats.production[side])}`} />
           <Figure label="Stationiert" value={number.format(stats.onPlanets[side])} />
