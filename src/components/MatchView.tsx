@@ -22,10 +22,10 @@ function WaitingRoom({ controller }: { controller: ArenaController }) {
       <section role="status" className="flex flex-col gap-0.5 border border-warn bg-surface/95 p-1.5 sm:p-2">
         <h2 className="font-semibold text-warn">Wartet auf Bots</h2>
         <ul className="flex flex-col text-sm">
-          {meta.players.map((player, seat) => (
-            <li key={seat} className="flex items-center gap-1">
-              <OwnerMark owner={seat === 0 ? 1 : 2} size={14} />
-              <span className="text-muted">Sitz {seat + 1}:</span>
+          {meta.players.map((player, side) => (
+            <li key={side} className="flex items-center gap-1">
+              <OwnerMark owner={side === 0 ? 1 : 2} size={14} />
+              <span className="text-muted">Spieler {side + 1}:</span>
               <span className="font-semibold">{player.joined ? player.name : "noch frei"}</span>
               {player.joined ? <span className="text-ok">bereit</span> : null}
             </li>
@@ -95,8 +95,17 @@ function Heading({ controller }: { controller: ArenaController }) {
  * Ein Match vom Server, live oder als Replay. `embedded`: als Teil der
  * Serien-Seite, dann ohne eigene Überschrift und ohne Abbrechen-Knopf.
  */
-export function MatchView({ id, embedded = false }: { id: string; embedded?: boolean }) {
-  const stream = useMatchStream(id);
+export function MatchView({
+  id,
+  embedded = false,
+  flip = false,
+}: {
+  id: string;
+  embedded?: boolean;
+  /** Seiten in der Anzeige vertauschen, damit ein Teilnehmer einer Serie seine Farbe behält. */
+  flip?: boolean;
+}) {
+  const stream = useMatchStream(id, flip);
 
   if (stream.phase === "loading") {
     return (

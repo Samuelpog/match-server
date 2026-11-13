@@ -11,7 +11,7 @@ Pfade: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/m/**`, weitere Seiten,
 | B7 | Schlachtfeld auf Canvas: Sterne, Planeten, Flotten, Effekte | erledigt |
 | B8 | Telemetrie: Kräfteverhältnis, Match-Status, Sieger-Auswertung | erledigt |
 | B9 | Zeitleiste und Replay-Steuerung, Replay speichern und laden | erledigt |
-| B10 | Lobby: Match, Serie, Demo, Verbindungsdaten | erledigt, Serie ungetestet bis M3 |
+| B10 | Lobby: Match, Serie, Demo, Verbindungsdaten | erledigt |
 | B11 | Adapter auf das Format von Agent-A, Test gegen lokalen Server | erledigt |
-| B12 | Serien-Seite gegen M3 testen | offen |
+| B12 | Serien-Seite gegen M3 testen | erledigt |
 | B13 | Test gegen Render, sobald der Stand auf `main` ist | offen |

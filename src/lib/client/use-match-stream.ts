@@ -32,9 +32,10 @@ const MAX_BACKOFF_MS = 10_000;
  * Ist das Match zu Ende, wandert es in den Speicher des Browsers.
  *
  * Für ein anderes Match die Komponente mit `key={id}` neu aufbauen: der
- * Zustand gehört zu genau einem Match.
+ * Zustand gehört zu genau einem Match. `flip` vertauscht die Seiten in der
+ * Anzeige (siehe `adapter.ts`); gespeichert wird immer im Format des Servers.
  */
-export function useMatchStream(id: string): MatchStream {
+export function useMatchStream(id: string, flip = false): MatchStream {
   const [state, setState] = useState<MatchStream>({ phase: "loading", waking: false });
 
   useEffect(() => {
@@ -64,14 +65,14 @@ export function useMatchStream(id: string): MatchStream {
           }
 
           if (!controller || !replay) {
-            controller = new ArenaController(toMap(response.map), toMeta(response.match));
+            controller = new ArenaController(toMap(response.map), toMeta(response.match, flip));
             replay = { ...response, frames: [] };
             clearTimeout(slow);
           } else {
-            controller.setMeta(toMeta(response.match));
+            controller.setMeta(toMeta(response.match, flip));
           }
 
-          if (!controller.append(response.frames.map(toFrame))) {
+          if (!controller.append(response.frames.map((frame) => toFrame(frame, flip)))) {
             // Es fehlt ein Tick: ab dem letzten bekannten neu holen, ohne auf Änderungen zu warten.
             next = controller.buffer.lastTick + 1;
             version = undefined;
@@ -116,7 +117,7 @@ export function useMatchStream(id: string): MatchStream {
 
     run();
     return () => abort.abort();
-  }, [id]);
+  }, [id, flip]);
 
   return state;
 }
