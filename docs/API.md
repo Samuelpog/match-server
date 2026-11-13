@@ -9,6 +9,7 @@ Stand: Entwurf 1. Abschnitte mit „geplant" sind noch nicht gebaut.
 ### Karte
 
 - 20 bis 30 Planeten, Standard 24. Jeder hat `id`, `x`, `y` und `growth` (Produktionsrate, 1 bis 5).
+- Das Feld ist 200 mal 140 Einheiten groß, Koordinaten sind ganze Zahlen. `speed` ist 10 Einheiten je Tick, Flugzeiten liegen damit zwischen 2 und etwa 24 Ticks.
 - Die Karte ist punktsymmetrisch um ihre Mitte: zu jedem Planeten gibt es einen gespiegelten Zwilling mit gleicher Produktionsrate und gleicher Startgarnison. Bei ungerader Anzahl liegt ein Planet genau in der Mitte.
 - Sitz 0 und Sitz 1 starten auf gespiegelten Heimatplaneten mit je 100 Schiffen und Produktionsrate 5. Alle anderen Planeten sind neutral.
 - Gleicher `seed` und gleiche Planetenzahl ergeben immer dieselbe Karte.
@@ -84,12 +85,16 @@ Die Reihenfolge der Flotten spielt keine Rolle. Ein Angreifer braucht also mehr 
 | `POST /api/matches` | Match anlegen. Body `CreateMatchRequest`, Antwort `201` mit `MatchResponse`. |
 | `GET /api/matches?limit=50` | Liste, neueste zuerst. `MatchListResponse`. |
 | `GET /api/matches/{id}` | Kopf, Karte und Auftragstext. `MatchResponse`. |
-| `GET /api/matches/{id}/replay?from=0&wait=25` | Frames ab Tick `from`. `ReplayResponse`. Live-Strom und Replay in einem. |
+| `GET /api/matches/{id}/replay?from=0&since=<version>&wait=25` | Frames ab Tick `from`. `ReplayResponse`. Live-Strom und Replay in einem. |
 | `POST /api/matches/{id}/abort` | Match abbrechen. |
 
 `POST /api/matches` ohne `players` legt zwei offene Plätze an. Das Match startet, sobald beide Sitze besetzt sind. Mit `"demo": true` spielen zwei eingebaute Bots sofort gegeneinander.
 
-`replay` wartet, solange es keinen Frame ab `from` gibt und das Match nicht beendet ist. Die Antwort mit `from=0` ist die Replay-Datei.
+`replay` wartet, solange es keinen Frame ab `from` gibt und das Match nicht beendet ist. Mit `since=<match.version>` kehrt der Aufruf auch zurück, wenn sich nur der Kopf geändert hat (Beitritt, Start, `online`, `absent`, Ende), dann mit leerem `frames`. Die Antwort mit `from=0` ist die Replay-Datei.
+
+Die Karte steht mit dem Anlegen fest, Frame 0 ist sofort abrufbar, auch solange das Match noch auf Bots wartet.
+
+Ein Match, das der Server nicht (mehr) kennt, beantwortet er mit `404` und Code `match_not_found`. Hat sich zugleich `bootId` in `GET /api/health` geändert, wurde der Server neu gestartet.
 
 ### Für Bots
 
