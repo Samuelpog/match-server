@@ -7,9 +7,11 @@ Pfade: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/m/**`, weitere Seiten,
 |---|---|---|
 | B1–B2 | Handshake | erledigt |
 | B5 | Schnittstelle zum Server (`decisions/b-0001`, `a-0002`) | abgestimmt |
-| B6 | Anzeige-Modell, Abspielkopf, Ableitung von Kämpfen und Statistik (`src/lib/viewer`) | läuft |
-| B7 | Schlachtfeld auf Canvas: Sterne, Planeten, Flotten, Effekte | offen |
-| B8 | Telemetrie: Kräfteverhältnis, Match-Status, Sieger-Auswertung | offen |
-| B9 | Zeitleiste und Replay-Steuerung, Replay speichern und laden | offen |
-| B10 | Lobby: Match, Serie, Demo, Verbindungsdaten | offen, braucht Endpunkte von Agent-A |
-| B11 | Adapter auf das Format von Agent-A, Test gegen Render | offen |
+| B6 | Anzeige-Modell, Abspielkopf, Ableitung von Kämpfen und Statistik (`src/lib/viewer`) | erledigt |
+| B7 | Schlachtfeld auf Canvas: Sterne, Planeten, Flotten, Effekte | erledigt |
+| B8 | Telemetrie: Kräfteverhältnis, Match-Status, Sieger-Auswertung | erledigt |
+| B9 | Zeitleiste und Replay-Steuerung, Replay speichern und laden | erledigt |
+| B10 | Lobby: Match, Serie, Demo, Verbindungsdaten | erledigt, Serie ungetestet bis M3 |
+| B11 | Adapter auf das Format von Agent-A, Test gegen lokalen Server | erledigt |
+| B12 | Serien-Seite gegen M3 testen | offen |
+| B13 | Test gegen Render, sobald der Stand auf `main` ist | offen |

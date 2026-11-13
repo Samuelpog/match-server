@@ -2,8 +2,10 @@
 
 /*
  * Design-Tokens: die einzige Quelle für Farben, Schrift und Abstände.
- * Rohbau-Werte, bis die Design-Richtung feststeht. Danach werden nur diese
- * Werte getauscht, die Komponenten bleiben unberührt.
+ * Thema: Kommandozentrale im All. Dunkler Grund, zwei kräftige Spielerfarben
+ * (Blau und Orange, auch bei Rot-Grün-Schwäche unterscheidbar), dazu eine
+ * ruhige Akzentfarbe für Bedienelemente, die keiner Seite gehört.
+ * Die Zeichenfläche liest dieselben Werte (`src/lib/viewer/render/theme.ts`).
  */
 @theme {
   /* 8px-Raster: p-1 = 8px, p-2 = 16px, p-3 = 24px, h-6 = 48px (Tippfläche). */
@@ -11,16 +13,23 @@
 
   /* Farbrollen. Die Tailwind-Palette ist abgeschaltet, es gibt nur diese. */
   --color-*: initial;
-  --color-ground: #f3f4f5;
-  --color-surface: #ffffff;
-  --color-ink: #111315;
-  --color-muted: #5c6166;
-  --color-line: #d5d8db;
-  --color-accent: #111315;
-  --color-on-accent: #ffffff;
-  --color-ok: #1f6f4a;
-  --color-warn: #7a4f00;
-  --color-danger: #b3261e;
+  --color-ground: #070a12;
+  --color-space: #05080f;
+  --color-surface: #0d1320;
+  --color-raised: #141d30;
+  --color-ink: #e8eef7;
+  --color-muted: #93a0b5;
+  --color-line: #24324b;
+  --color-accent: #c4b5fd;
+  --color-on-accent: #100c24;
+  --color-ok: #4ade80;
+  --color-warn: #facc15;
+  --color-danger: #f87171;
+
+  /* Spielfarben: neutral, Spieler 1, Spieler 2. */
+  --color-neutral: #8b93a3;
+  --color-p1: #38bdf8;
+  --color-p2: #fb923c;
 
   /* Typo-Skala. */
   --text-*: initial;
@@ -41,6 +50,10 @@
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
+:root {
+  color-scheme: dark;
+}
+
 body {
   background: var(--color-ground);
   color: var(--color-ink);
@@ -52,4 +65,63 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-ink);
   outline-offset: 2px;
+}
+
+/*
+ * Eigene Bausteine liegen in der Ebene `components`, damit einzelne Tailwind-Klassen
+ * (etwa eine andere Textfarbe) sie überstimmen können.
+ */
+@layer components {
+  /* Zahlen, die sich laufend ändern, sollen nicht springen. */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Kleine Überschrift über Anzeigen, wie die Beschriftung an einem Instrument. */
+  .label {
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+}
+
+/* Der Schieber der Zeitleiste liegt unsichtbar über dem Verlauf und bleibt mit Maus, Finger und Tastatur bedienbar. */
+.scrubber {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+}
+.scrubber::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 100%;
+}
+.scrubber::-moz-range-track {
+  background: transparent;
+  height: 100%;
+}
+.scrubber::-webkit-slider-thumb {
+  appearance: none;
+  width: 2px;
+  height: 100%;
+  background: transparent;
+}
+.scrubber::-moz-range-thumb {
+  width: 2px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+.scrubber:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

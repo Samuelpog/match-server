@@ -38,7 +38,10 @@ export interface Fleet {
   /** Index des Zielplaneten in `map.planets`. */
   to: number;
   ships: number;
-  /** Tick, in dem die Flotte gestartet ist. */
+  /**
+   * Tick, auf dessen Stand der Befehl gegeben wurde. Ab hier ist die Flotte
+   * unterwegs; gemeldet wird sie im Frame danach.
+   */
   launch: number;
   /** Tick, in dem sie ankommt und in den Planetenstand eingeht. */
   arrive: number;
@@ -54,35 +57,37 @@ export interface SeatTick {
 
 export interface Frame {
   t: number;
+  /** Millisekunden seit Match-Start, zu denen der Tick aufgelöst wurde. Fehlt in Testdaten. */
+  at?: number;
   /** Stand jedes Planeten nach Auflösung von Tick `t`, Reihenfolge wie `map.planets`. */
   planets: PlanetState[];
-  /** Flotten, die in diesem Tick gestartet sind. */
+  /** Flotten, die beim Auflösen dieses Ticks gestartet sind (`launch === t - 1`). */
   launches: Fleet[];
+  /** Ereignisse dieses Ticks, wenn der Server sie mitliefert. Sonst leitet der Puffer sie ab. */
+  events?: PlanetEvent[];
   seats?: [SeatTick, SeatTick];
 }
 
 export interface PlayerInfo {
   name: string;
-  /** `null`: unbekannt (etwa in einem geladenen Replay). */
+  /** Eingebauter Bot des Servers statt eines Bots von außen. */
+  builtIn: boolean;
+  /** Der Platz ist besetzt. */
+  joined: boolean;
+  /** Hat sich zuletzt gemeldet. `null`: unbekannt, etwa in einem geladenen Replay. */
   online: boolean | null;
-  /** Eingebauter Dummy-Bot statt eines Bots von außen. */
-  builtIn?: boolean;
+  /** Hat mehrere Fristen verpasst, der Server wartet nicht mehr auf ihn. */
+  absent: boolean;
 }
 
-export type MatchStatus = "waiting" | "running" | "finished";
+export type MatchStatus = "waiting" | "running" | "finished" | "aborted";
+
+export type ResultReason = "elimination" | "ships" | "growth" | "draw" | "aborted" | "unknown";
 
 export interface MatchResult {
-  /** `0` heißt Unentschieden. */
+  /** `0` heißt: kein Sieger (Unentschieden oder Abbruch). */
   winner: Owner;
-  reason: string | null;
-}
-
-export interface SeriesInfo {
-  id: string;
-  bestOf: number;
-  /** Nummer dieses Matches in der Serie, bei 1 beginnend. */
-  game: number;
-  wins: [number, number];
+  reason: ResultReason;
 }
 
 export interface MatchMeta {
@@ -93,7 +98,14 @@ export interface MatchMeta {
   tickMs: number;
   players: [PlayerInfo, PlayerInfo];
   result: MatchResult | null;
-  series?: SeriesInfo;
+  /** Serie, zu der das Match gehört, mit der Spielnummer ab 1. */
+  series: { id: string; game: number } | null;
+  label: string | null;
+}
+
+/** Ein Match läuft nicht mehr: beendet oder abgebrochen. */
+export function isOver(status: MatchStatus): boolean {
+  return status === "finished" || status === "aborted";
 }
 
 /** Was in einem Tick an einem Planeten passiert ist. */
@@ -118,14 +130,4 @@ export interface TickStats {
   production: [number, number];
   planets: [number, number];
   neutralPlanets: number;
-}
-
-/** Ein vollständiges Match als Datei. */
-export interface ReplayFile {
-  format: "planetwars-replay";
-  version: 1;
-  savedAt: string;
-  meta: MatchMeta;
-  map: ArenaMap;
-  frames: Frame[];
 }
