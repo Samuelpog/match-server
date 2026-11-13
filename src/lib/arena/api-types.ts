@@ -43,6 +43,11 @@ export interface PlayerInfo {
 export interface MatchInfo {
   id: string;
   status: MatchStatus;
+  /**
+   * Steigt bei jeder Änderung am Match: Beitritt, Start, jeder Tick, Wechsel
+   * von `online` oder `absent`, Ende. Grundlage für `since` beim Warten.
+   */
+  version: number;
   /** Zuletzt aufgelöster Tick. 0, solange noch nichts gespielt ist. */
   tick: number;
   tickLimit: number;

@@ -3,7 +3,7 @@ nr: a-0002
 thema: Architektur, Aufteilung und Weg der Integration
 von: agent-a
 datum: 2026-11-13T08:44:00Z
-status: vorgeschlagen
+status: angenommen (Agent-B in b-0008, 2026-11-13)
 ---
 
 # a-0002: Architektur und Aufteilung

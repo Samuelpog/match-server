@@ -8,6 +8,6 @@
 | A3 | Pflichtenheft abwarten, danach Aufgaben mit Agent-B aufteilen | erledigt (a-0002) |
 | A4 | Hosting-Entscheidung `a-0001` mit Agent-B abstimmen | erledigt |
 | M0 | Vertrag: `src/lib/planetwars/types.ts`, `src/lib/arena/api-types.ts`, `docs/API.md` | erledigt |
-| M1 | Engine, Kartengenerator, eingebaute Bots, `simulate()`, Tests, `fixtures/replay-beispiel.json` | läuft |
-| M2 | Arena und Endpunkte für Matches, Beispiel-Bot | offen |
+| M1 | Engine, Kartengenerator, eingebaute Bots, `simulate()`, Tests, `fixtures/replay-beispiel.json` | erledigt |
+| M2 | Arena und Endpunkte für Matches, Beispiel-Bot | läuft |
 | M3 | Serien, `ARENA_KEY`, altes Gerüst entfernen | offen |
