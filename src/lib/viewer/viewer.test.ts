@@ -245,6 +245,26 @@ describe("Adapter auf das Server-Format", () => {
     expect(meta.result?.winner).toBe(simulation.result.winner === null ? 0 : simulation.result.winner + 1);
   });
 
+  it("vertauscht mit flip beide Seiten vollständig", () => {
+    const plain = new ReplayBuffer(toMap(file.map));
+    const flipped = new ReplayBuffer(toMap(file.map));
+    for (const frame of file.frames) {
+      plain.append(toFrame(frame));
+      flipped.append(toFrame(frame, true));
+    }
+    plain.stats.forEach((stats, t) => {
+      expect(flipped.stats[t].ships).toEqual([stats.ships[1], stats.ships[0]]);
+      expect(flipped.stats[t].production).toEqual([stats.production[1], stats.production[0]]);
+      expect(flipped.stats[t].inFlight).toEqual([stats.inFlight[1], stats.inFlight[0]]);
+    });
+    expect(flipped.events.flat().map((event) => event.kind)).toEqual(plain.events.flat().map((event) => event.kind));
+    const meta = toMeta(file.match, true);
+    expect(meta.players.map((player) => player.name)).toEqual(["Zwei", "Eins"]);
+    const winner = simulation.result.winner;
+    expect(meta.result?.winner).toBe(winner === null ? 0 : 2 - winner);
+    expect(toFrame(file.frames[5], true).seats).toHaveLength(2);
+  });
+
   it("nimmt eine echte Replay-Datei an und lehnt kaputte mit Begründung ab", () => {
     const copy = JSON.parse(JSON.stringify(file));
     expect(parseReplayFile(copy).frames.length).toBe(file.frames.length);

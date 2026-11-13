@@ -9,12 +9,23 @@ import type { ArenaMap, Fleet, Frame, MatchMeta, Owner, PlanetEvent, PlanetState
 
 const REASONS: readonly ResultReason[] = ["elimination", "ships", "growth", "draw", "aborted"];
 
-function toOwner(owner: Wire.Owner): Owner {
-  return owner === 0 ? 1 : owner === 1 ? 2 : 0;
+/**
+ * `flip` vertauscht die beiden Seiten in der Anzeige: Sitz 1 wird Spieler 1
+ * (blau, links), Sitz 0 wird Spieler 2. In einer Serie wechseln die Sitze von
+ * Spiel zu Spiel; so behält jeder Teilnehmer über die ganze Serie seine Farbe.
+ */
+function toOwner(owner: Wire.Owner, flip: boolean): Owner {
+  if (owner === null) return 0;
+  return ((flip ? 1 - owner : owner) + 1) as Owner;
 }
 
-function toState(state: Wire.PlanetState): PlanetState {
-  return { owner: toOwner(state[0]), ships: state[1] };
+function toState(state: Wire.PlanetState, flip: boolean): PlanetState {
+  return { owner: toOwner(state[0], flip), ships: state[1] };
+}
+
+/** Ein Paar in der Reihenfolge der Sitze wird zum Paar in der Reihenfolge der Spieler. */
+function pair<T>(values: readonly [T, T], flip: boolean): [T, T] {
+  return flip ? [values[1], values[0]] : [values[0], values[1]];
 }
 
 export function toMap(map: Wire.GameMap): ArenaMap {
@@ -25,10 +36,10 @@ export function toMap(map: Wire.GameMap): ArenaMap {
   };
 }
 
-function toFleet(fleet: Wire.Fleet): Fleet {
+function toFleet(fleet: Wire.Fleet, flip: boolean): Fleet {
   return {
     id: String(fleet.id),
-    owner: (fleet.owner + 1) as Player,
+    owner: toOwner(fleet.owner, flip) as Player,
     from: fleet.from,
     to: fleet.to,
     ships: fleet.ships,
@@ -37,36 +48,34 @@ function toFleet(fleet: Wire.Fleet): Fleet {
   };
 }
 
-function toEvent(event: Wire.PlanetEvent, t: number): PlanetEvent {
-  const before = toState(event.before);
-  const after = toState(event.after);
-  const foreign =
-    before.owner === 0 ? event.arrivals[0] + event.arrivals[1] : event.arrivals[2 - before.owner];
+function toEvent(event: Wire.PlanetEvent, t: number, flip: boolean): PlanetEvent {
+  const before = toState(event.before, flip);
+  const after = toState(event.after, flip);
+  const arrived = pair(event.arrivals, flip);
+  const foreign = before.owner === 0 ? arrived[0] + arrived[1] : arrived[2 - before.owner];
   return {
     t,
     planet: event.planet,
     kind: event.captured ? "capture" : foreign > 0 ? "battle" : "reinforce",
-    arrived: [event.arrivals[0], event.arrivals[1]],
+    arrived,
     before,
     after,
   };
 }
 
-export function toFrame(frame: Wire.Frame): Frame {
+export function toFrame(frame: Wire.Frame, flip = false): Frame {
+  const seat = (info: Wire.SeatFrame) => ({ onTime: frame.t === 0 ? null : info.submitted, invalid: info.rejected });
   return {
     t: frame.t,
     at: frame.at,
-    planets: frame.planets.map(toState),
-    launches: frame.launches.map(toFleet),
-    events: frame.events.map((event) => toEvent(event, frame.t)),
-    seats: [
-      { onTime: frame.t === 0 ? null : frame.players[0].submitted, invalid: frame.players[0].rejected },
-      { onTime: frame.t === 0 ? null : frame.players[1].submitted, invalid: frame.players[1].rejected },
-    ],
+    planets: frame.planets.map((state) => toState(state, flip)),
+    launches: frame.launches.map((fleet) => toFleet(fleet, flip)),
+    events: frame.events.map((event) => toEvent(event, frame.t, flip)),
+    seats: pair([seat(frame.players[0]), seat(frame.players[1])], flip),
   };
 }
 
-export function toMeta(match: MatchInfo): MatchMeta {
+export function toMeta(match: MatchInfo, flip = false): MatchMeta {
   const player = (info: MatchInfo["players"][number]) => ({
     name: info.name ?? (info.joined ? `Sitz ${info.seat + 1}` : "Noch frei"),
     builtIn: info.kind === "bot",
@@ -80,10 +89,10 @@ export function toMeta(match: MatchInfo): MatchMeta {
     status: match.status,
     tickLimit: match.tickLimit,
     tickMs: match.tickMs,
-    players: [player(match.players[0]), player(match.players[1])],
+    players: pair([player(match.players[0]), player(match.players[1])], flip),
     result: match.result
       ? {
-          winner: toOwner(match.result.winner),
+          winner: toOwner(match.result.winner, flip),
           reason: reason && REASONS.includes(reason) ? reason : "unknown",
         }
       : null,

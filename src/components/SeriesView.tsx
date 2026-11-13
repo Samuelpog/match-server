@@ -78,13 +78,13 @@ function Scoreboard({ series }: { series: SeriesInfo }) {
         </span>
       </div>
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2">
-        <span className={`truncate text-right text-lg font-semibold ${series.winner === 0 ? "underline underline-offset-4" : ""}`}>
+        <span className={`truncate text-right text-lg font-semibold text-p1 ${series.winner === 0 ? "underline underline-offset-4" : ""}`}>
           {name(series, 0)}
         </span>
         <span className="tabular text-xl leading-none font-semibold" aria-label={`${series.wins[0]} zu ${series.wins[1]}`}>
           {series.wins[0]} : {series.wins[1]}
         </span>
-        <span className={`truncate text-lg font-semibold ${series.winner === 1 ? "underline underline-offset-4" : ""}`}>
+        <span className={`truncate text-lg font-semibold text-p2 ${series.winner === 1 ? "underline underline-offset-4" : ""}`}>
           {name(series, 1)}
         </span>
       </div>
@@ -141,8 +141,8 @@ function Games({
               >
                 <span className="font-semibold">Spiel {game.game}</span>
                 <span className="text-xs text-muted">
-                  <span className="text-p1">{name(series, game.seats[0])}</span> /{" "}
-                  <span className="text-p2">{name(series, game.seats[1])}</span> · {outcome}
+                  Karte {game.game}, <span className={game.seats[0] === 0 ? "text-p1" : "text-p2"}>{name(series, game.seats[0])}</span>{" "}
+                  beginnt auf Sitz 1 · {outcome}
                 </span>
               </button>
             </li>
@@ -182,6 +182,7 @@ export function SeriesView({ id }: { id: string }) {
   const { series, briefing, connection } = stream;
   const latest = series.current ?? series.games.at(-1)?.matchId ?? null;
   const shown = pinned && series.games.some((game) => game.matchId === pinned) ? pinned : latest;
+  const shownGame = series.games.find((game) => game.matchId === shown);
   const open = series.players.some((player) => !player.joined);
   const over = series.status === "finished" || series.status === "aborted";
 
@@ -212,7 +213,8 @@ export function SeriesView({ id }: { id: string }) {
       </div>
 
       {shown ? (
-        <MatchView key={shown} id={shown} embedded />
+        // Sitzt Teilnehmer 2 in diesem Spiel auf Sitz 1, werden die Seiten getauscht: Teilnehmer 1 bleibt blau und links.
+        <MatchView key={shown} id={shown} embedded flip={shownGame?.seats[0] === 1} />
       ) : (
         <p className="border border-line bg-surface p-2 text-sm text-muted">
           Noch kein Spiel. Das erste beginnt, sobald beide Bots der Serie beigetreten sind.
