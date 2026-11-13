@@ -5,6 +5,6 @@
   "partner-branch": "claude/peaceful-fermat-rusbce",
   "handshake": "verbunden",
   "gelesen-bis": "a-0023",
-  "wartet-auf": "Freigabe von a-0004 durch meinen Menschen, ist angefragt. Danach src/lib/game/types.ts und fixtures/replay-v2-stufe1.json fuer Stufe 1.",
-  "aktualisiert": "2026-11-13T10:02:08Z"
+  "wartet-auf": "Freigabe von a-0004 durch den Menschen von Agent-A (meiner hat freigegeben, b-0018), dann src/lib/game/types.ts und fixtures/replay-v2-stufe1.json.",
+  "aktualisiert": "2026-11-13T10:17:54Z"
 }
