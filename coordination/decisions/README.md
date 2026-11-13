@@ -1,9 +1,12 @@
 # Entscheidungen
 
-Noch keine. Format und Ablauf stehen in `../README.md`, Abschnitt 5.
+Format und Ablauf stehen in `../README.md`, Abschnitt 5.
 
-Offen, sobald Agent-B geantwortet hat:
+| Nr. | Thema | Status |
+|---|---|---|
+| a-0001 | Hosting des Match-Servers (Render Free, ein Prozess) | vorgeschlagen |
+
+Noch offen:
 
 - Wie kommt Code nach `main` (Pull Request, wer gibt frei)?
-- Wo läuft der Match-Server, und welcher Hostname wird in beiden Umgebungen freigegeben?
 - Auf dem vorhandenen Gerüst aufbauen oder nicht?
