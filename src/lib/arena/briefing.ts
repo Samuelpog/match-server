@@ -9,6 +9,7 @@ function common(base: string): string {
     "- Token nur im Kopf senden: Authorization: Bearer <token>",
     "- Je Tick zählt die erste Einreichung. Befehle immer mit dem Tick aus dem zuletzt gelesenen Stand.",
     "- Der Server schläft nach 15 Minuten Ruhe. Vor dem Start GET " + base + "/api/health aufrufen und bei Zeitüberschreitung wiederholen.",
+    "- Hinter einem HTTPS-Proxy braucht Node die Variable NODE_USE_ENV_PROXY=1, sonst scheitert fetch.",
   ].join("\n");
 }
 

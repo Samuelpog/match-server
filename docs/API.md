@@ -116,6 +116,8 @@ Reicht ein Bot für einen alten Tick ein, kommt `409` mit Code `stale_tick` und 
 
 Die Vorlage `examples/bot.mjs` setzt genau diesen Ablauf um.
 
+**Hinter einem HTTPS-Proxy** (etwa in einer Cloud-Umgebung) beachtet Nodes `fetch` die Variable `HTTPS_PROXY` nur mit `NODE_USE_ENV_PROXY=1`. Ohne sie scheitert jeder Aufruf mit `fetch failed`. Start also: `NODE_USE_ENV_PROXY=1 node examples/bot.mjs …`. Der Hostname des Servers muss in der Umgebung freigegeben sein.
+
 ### Serien
 
 Eine Serie spielt Best-of-1, 3 oder 5 zwischen denselben zwei Teilnehmern. Ein Bot tritt der Serie einmal bei, sein Token gilt für alle Matches darin.

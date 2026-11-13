@@ -12,4 +12,5 @@
 | M2 | Arena und Endpunkte für Matches, Beispiel-Bot | erledigt |
 | M3 | Serien (`ARENA_KEY` ist mit M2 erledigt) | erledigt |
 | M4 | Rest des alten Gerüsts entfernen (`src/lib/match/`, `@upstash/redis`), UI von B gemergt und im Browser geprüft | erledigt |
-| M5 | Bot-Protokoll von beiden Umgebungen gegen Render messen, inklusive Aufwachen | wartet auf Merge nach `main` |
+| M5 | Bot-Protokoll von meiner Umgebung gegen Render gemessen (`a-0014`) | erledigt |
+| M6 | Aufwachen aus dem Schlafmodus messen | offen |
