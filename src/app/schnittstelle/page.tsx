@@ -4,49 +4,98 @@ export const metadata: Metadata = { title: "Schnittstelle" };
 
 const ENDPOINTS = [
   {
-    method: "POST",
-    path: "/api/matches",
-    auth: "Schlüssel, falls gesetzt",
-    text: "Legt ein Match an. Body: { \"game\"?: string }. Antwort: Stand und Links.",
+    method: "GET",
+    path: "/api/health",
+    auth: "keiner",
+    text: "Lebenszeichen. Nennt die Start-Kennung bootId, die eingebauten Bots, Standardwerte und Grenzen.",
   },
   {
     method: "POST",
-    path: "/api/matches/{id}/join",
-    auth: "keine",
-    text: "Besetzt den nächsten freien Sitzplatz. Body: { \"name\"?: string }. Antwort: Sitzplatz und Token, das Token nur dieses eine Mal.",
+    path: "/api/matches",
+    auth: "Arena-Schlüssel, falls gesetzt",
+    text: 'Legt ein Match an. Body: { "players"?, "demo"?, "options"?, "label"? }. Ohne players entstehen zwei offene Plätze, mit "demo": true spielen zwei eingebaute Bots sofort.',
+  },
+  {
+    method: "GET",
+    path: "/api/matches",
+    auth: "keiner",
+    text: "Liste der Matches, die der Server kennt, neueste zuerst.",
   },
   {
     method: "GET",
     path: "/api/matches/{id}",
-    auth: "keine",
-    text: "Öffentlicher Stand für Zuschauer. Zeigt nur, was das Spiel freigibt.",
+    auth: "keiner",
+    text: "Kopf des Matches, Karte und fertiger Auftragstext für einen Bot.",
   },
   {
     method: "GET",
-    path: "/api/matches/{id}/me",
-    auth: "Spieler-Token",
-    text: "Stand aus Sicht des Spielers, mit you.seat und you.yourTurn.",
+    path: "/api/matches/{id}/replay?from=TICK&since=VERSION&wait=SEKUNDEN",
+    auth: "keiner",
+    text: "Frames ab Tick from. Live-Strom und Replay in einem: die Antwort mit from=0 ist die Replay-Datei.",
   },
   {
     method: "POST",
-    path: "/api/matches/{id}/moves",
-    auth: "Spieler-Token",
-    text: "Sendet einen Zug. Body: { \"move\": JSON, \"moveId\"?: string }. Dieselbe moveId zweimal zieht nur einmal.",
+    path: "/api/matches/{id}/join",
+    auth: "keiner",
+    text: 'Besetzt einen offenen Platz. Body: { "name"?: string }. Antwort: Sitz und Token, das Token nur dieses eine Mal.',
   },
   {
     method: "GET",
-    path: "/api/health",
-    auth: "keine",
-    text: "Zeigt, ob der Server läuft, welcher Speicher angebunden ist und welche Spiele es gibt.",
+    path: "/api/matches/{id}/state?wait=SEKUNDEN",
+    auth: "Spieler-Token",
+    text: "Stand aus Sicht des Bots: Planeten, Flotten, Tick und Frist. Mit wait kommt die Antwort, sobald der Bot am Zug ist oder das Match endet.",
+  },
+  {
+    method: "POST",
+    path: "/api/matches/{id}/orders?wait=SEKUNDEN",
+    auth: "Spieler-Token",
+    text: 'Reicht Befehle ein. Body: { "tick": Zahl, "orders": [{ "from", "to", "ships" }] }. Mit wait enthält die Antwort schon den nächsten Stand.',
+  },
+  {
+    method: "POST",
+    path: "/api/matches/{id}/abort",
+    auth: "Arena-Schlüssel, falls gesetzt",
+    text: "Bricht ein wartendes oder laufendes Match ab.",
+  },
+  {
+    method: "POST",
+    path: "/api/series",
+    auth: "Arena-Schlüssel, falls gesetzt",
+    text: 'Legt eine Serie an. Body: { "bestOf"?: 1 | 3 | 5, "players"?, "demo"?, "options"?, "label"? }. Der Server startet die Spiele selbst und wechselt die Sitze.',
+  },
+  {
+    method: "GET",
+    path: "/api/series/{id}?since=VERSION&wait=SEKUNDEN",
+    auth: "keiner",
+    text: "Stand der Serie: Teilnehmer, Siege, Spiele, laufendes Match und Auftragstext. GET /api/series listet alle.",
+  },
+  {
+    method: "POST",
+    path: "/api/series/{id}/join",
+    auth: "keiner",
+    text: 'Besetzt einen Platz in der Serie. Body: { "name"?: string }. Das Token gilt für jedes Match der Serie.',
+  },
+  {
+    method: "GET",
+    path: "/api/series/{id}/me?wait=SEKUNDEN&after=MATCH",
+    auth: "Spieler-Token",
+    text: "Für Bots: in welchem Match und auf welchem Sitz es weitergeht. Mit after wartet der Aufruf auf das Spiel nach dem genannten.",
+  },
+  {
+    method: "POST",
+    path: "/api/series/{id}/abort",
+    auth: "Arena-Schlüssel, falls gesetzt",
+    text: "Bricht die Serie ab, samt laufendem Match.",
   },
 ];
 
 const ERRORS = [
-  ["400", "bad_request, unknown_game", "Die Anfrage ist fehlerhaft."],
-  ["401", "unauthorized, create_key_required", "Token oder Schlüssel fehlt oder ist falsch."],
-  ["404", "match_not_found", "Das Match gibt es nicht oder es ist abgelaufen."],
-  ["409", "match_full, match_not_running, not_your_turn, write_conflict", "Die Anfrage passt nicht zum aktuellen Stand."],
-  ["422", "invalid_move", "Das Spiel lehnt den Zug ab."],
+  ["400", "bad_request, unknown_bot", "Die Anfrage ist fehlerhaft."],
+  ["401", "unauthorized, arena_key_required", "Token oder Schlüssel fehlt oder ist falsch."],
+  ["404", "match_not_found, series_not_found", "Der Server kennt das Match oder die Serie nicht (mehr). Nach einem Neustart ist alles weg."],
+  ["409", "match_full, match_not_running, stale_tick, already_submitted, already_over", "Die Anfrage passt nicht zum aktuellen Stand."],
+  ["413", "body_too_large", "Der Body ist größer als 64 KB."],
+  ["429", "arena_busy", "Es laufen schon zu viele Matches."],
 ];
 
 export default function Page() {
@@ -55,8 +104,11 @@ export default function Page() {
       <header className="flex flex-col gap-2">
         <h1 className="text-xl font-semibold">Schnittstelle</h1>
         <p className="text-muted">
-          Alles läuft über REST mit JSON. Spieler weisen sich mit dem Header{" "}
-          <code className="font-mono text-ink">Authorization: Bearer TOKEN</code> aus.
+          Alles läuft über REST mit JSON. Bots weisen sich mit dem Kopf{" "}
+          <code className="font-mono text-ink">Authorization: Bearer TOKEN</code> aus, der Arena-Schlüssel steht im
+          Kopf <code className="font-mono text-ink">X-Arena-Key</code>. Spielregeln, Takt und alle Felder stehen in{" "}
+          <code className="font-mono text-ink">docs/API.md</code> im Repository, eine Bot-Vorlage in{" "}
+          <code className="font-mono text-ink">examples/bot.mjs</code>.
         </p>
       </header>
 
@@ -80,13 +132,14 @@ export default function Page() {
 
       <section aria-labelledby="warten-titel" className="flex flex-col gap-2">
         <h2 id="warten-titel" className="text-lg font-semibold">
-          Auf Änderungen warten
+          Warten statt nachfragen
         </h2>
         <p>
-          Jeder Stand trägt eine <code className="font-mono">version</code>, die bei jeder Änderung um eins steigt.
-          Beide GET-Endpunkte für ein Match nehmen <code className="font-mono">?since=VERSION&amp;wait=SEKUNDEN</code>{" "}
-          an. Der Server hält die Anfrage dann bis zu 25 Sekunden offen und antwortet, sobald sich etwas ändert. Ohne
-          Änderung kommt Status 204 ohne Inhalt.
+          Aufrufe mit <code className="font-mono">wait=SEKUNDEN</code> hält der Server bis zu 25 Sekunden offen und
+          beantwortet sie, sobald es etwas Neues gibt. Kommt nichts, antwortet er mit Status 204 ohne Inhalt.{" "}
+          <code className="font-mono">replay</code> wartet auf neue Frames oder das Ende, mit{" "}
+          <code className="font-mono">since=VERSION</code> auch auf Änderungen am Kopf des Matches.{" "}
+          <code className="font-mono">state</code> wartet, bis der Bot am Zug ist.
         </p>
       </section>
 
