@@ -21,31 +21,33 @@ function meta(status: MatchMeta["status"]): MatchMeta {
     tickLimit: 100,
     tickMs: 100,
     players: [
-      { name: "Eins", online: true },
-      { name: "Zwei", online: true },
+      { name: "Eins", builtIn: false, joined: true, online: true, absent: false },
+      { name: "Zwei", builtIn: false, joined: true, online: true, absent: false },
     ],
-    result: status === "finished" ? { winner: 1, reason: null } : null,
+    result: status === "finished" ? { winner: 1, reason: "ships" } : null,
+    series: null,
+    label: null,
   };
 }
 
-/** Spieler 1 schickt 30 Schiffe von a nach c (2 Ticks), Spieler 2 schickt 5 von b nach b-Verstärkung c später. */
+/** Spieler 1 erobert c, Spieler 2 greift c vergeblich an, Spieler 1 verstärkt c. */
 const frames: Frame[] = [
   { t: 0, planets: [{ owner: 1, ships: 50 }, { owner: 2, ships: 50 }, { owner: 0, ships: 10 }], launches: [] },
   {
     t: 1,
     planets: [{ owner: 1, ships: 22 }, { owner: 2, ships: 53 }, { owner: 0, ships: 10 }],
-    launches: [{ id: "f1", owner: 1, from: 0, to: 2, ships: 30, launch: 1, arrive: 3 }],
+    launches: [{ id: "f1", owner: 1, from: 0, to: 2, ships: 30, launch: 0, arrive: 3 }],
   },
   {
     t: 2,
     planets: [{ owner: 1, ships: 24 }, { owner: 2, ships: 51 }, { owner: 0, ships: 10 }],
-    launches: [{ id: "f2", owner: 2, from: 1, to: 2, ships: 5, launch: 2, arrive: 4 }],
+    launches: [{ id: "f2", owner: 2, from: 1, to: 2, ships: 5, launch: 1, arrive: 4 }],
   },
   { t: 3, planets: [{ owner: 1, ships: 26 }, { owner: 2, ships: 54 }, { owner: 1, ships: 20 }], launches: [] },
   {
     t: 4,
     planets: [{ owner: 1, ships: 18 }, { owner: 2, ships: 57 }, { owner: 1, ships: 16 }],
-    launches: [{ id: "f3", owner: 1, from: 0, to: 2, ships: 10, launch: 4, arrive: 5 }],
+    launches: [{ id: "f3", owner: 1, from: 0, to: 2, ships: 10, launch: 3, arrive: 5 }],
   },
   { t: 5, planets: [{ owner: 1, ships: 20 }, { owner: 2, ships: 60 }, { owner: 1, ships: 27 }], launches: [] },
 ];
@@ -74,13 +76,32 @@ describe("ReplayBuffer", () => {
     expect(buffer.stats[5]).toMatchObject({ inFlight: [0, 0], ships: [47, 60], planets: [2, 1], neutralPlanets: 0 });
   });
 
-  it("zeigt Flotten vom Start-Tick bis vor den Ankunfts-Tick, auch nach dem Zurückspulen", () => {
+  it("nimmt Ereignisse des Servers, wenn er sie mitliefert", () => {
+    const buffer = new ReplayBuffer(map);
+    buffer.append(frames[0]);
+    const given = { t: 1, planet: 1, kind: "battle" as const, arrived: [7, 0] as [number, number], before: frames[0].planets[1], after: frames[1].planets[1] };
+    buffer.append({ ...frames[1], events: [given] });
+    expect(buffer.events[1]).toEqual([given]);
+  });
+
+  it("zählt eine Flotte, die im selben Tick startet und ankommt, nie als in der Luft", () => {
+    const buffer = new ReplayBuffer(map);
+    buffer.append(frames[0]);
+    buffer.append({
+      t: 1,
+      planets: [{ owner: 1, ships: 42 }, { owner: 2, ships: 53 }, { owner: 0, ships: 0 }],
+      launches: [{ id: "kurz", owner: 1, from: 0, to: 2, ships: 10, launch: 0, arrive: 1 }],
+    });
+    expect(buffer.stats[1].inFlight).toEqual([0, 0]);
+  });
+
+  it("zeigt Flotten ab dem Start bis vor den Ankunfts-Tick, auch nach dem Zurückspulen", () => {
     const buffer = filled();
     const ids = (pos: number) => buffer.activeFleets(pos).map((fleet) => fleet.id);
-    expect(ids(0.9)).toEqual([]);
-    expect(ids(1)).toEqual(["f1"]);
+    expect(ids(0.5)).toEqual(["f1"]);
+    expect(ids(1)).toEqual(["f1", "f2"]);
     expect(ids(2.5)).toEqual(["f1", "f2"]);
-    expect(ids(3)).toEqual(["f2"]);
+    expect(ids(3)).toEqual(["f2", "f3"]);
     expect(ids(4.2)).toEqual(["f3"]);
     expect(ids(5)).toEqual([]);
     expect(ids(2.5)).toEqual(["f1", "f2"]);

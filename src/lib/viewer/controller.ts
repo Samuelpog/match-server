@@ -1,5 +1,5 @@
 import { ReplayBuffer } from "./buffer";
-import type { ArenaMap, Frame, MatchMeta } from "./model";
+import { isOver, type ArenaMap, type Frame, type MatchMeta } from "./model";
 
 export const SPEEDS = [0.25, 0.5, 1, 2, 4, 8] as const;
 
@@ -42,14 +42,17 @@ export class ArenaController {
   private liveTickMs: number;
   private lastArrival: number | null = null;
   private listeners = new Set<Listener>();
+  private frameListeners = new Set<(pos: number) => void>();
   private snapshot: PlaybackState;
   private metaVersion = 0;
+  private paceMs: number | null = null;
+  private paceCount = 0;
 
   constructor(map: ArenaMap, meta: MatchMeta) {
     this.buffer = new ReplayBuffer(map);
     this.metaValue = meta;
     // Ein laufendes Match beginnt live, ein beendetes als Replay von vorn.
-    this.following = meta.status !== "finished";
+    this.following = !isOver(meta.status);
     this.liveTickMs = meta.tickMs > 0 ? meta.tickMs : DEFAULT_TICK_MS;
     this.snapshot = this.compute();
   }
@@ -61,7 +64,29 @@ export class ArenaController {
   /** Zählt hoch, sobald sich `meta` ändert. Für `useSyncExternalStore`. */
   getMetaVersion = (): number => this.metaVersion;
 
+  private get over(): boolean {
+    return isOver(this.metaValue.status);
+  }
+
+  /**
+   * Dauer eines Ticks beim Abspielen mit Tempo 1. Gemessen am echten Verlauf
+   * (`at` der Frames), damit ein Replay so schnell läuft wie das Match selbst.
+   * Der Median hält einzelne lange Fristen aus dem Wert heraus.
+   */
   get tickMs(): number {
+    const frames = this.buffer.frames;
+    if (this.paceCount !== frames.length && (this.paceCount === 0 || frames.length - this.paceCount >= 20 || this.over)) {
+      this.paceCount = frames.length;
+      const gaps: number[] = [];
+      for (let i = 1; i < frames.length; i++) {
+        const a = frames[i - 1].at;
+        const b = frames[i].at;
+        if (a !== undefined && b !== undefined && b > a) gaps.push(b - a);
+      }
+      gaps.sort((x, y) => x - y);
+      this.paceMs = gaps.length >= 3 ? Math.min(1500, Math.max(60, gaps[gaps.length >> 1])) : null;
+    }
+    if (this.paceMs !== null) return this.paceMs;
     return this.metaValue.tickMs > 0 ? this.metaValue.tickMs : DEFAULT_TICK_MS;
   }
 
@@ -102,6 +127,8 @@ export class ArenaController {
     if (!this.playing || head < 0 || elapsed <= 0) return;
 
     if (this.following) {
+      // Nach einer Pause des Browsers (Tab im Hintergrund) nicht alles nachspielen.
+      if (head - this.pos > SNAP_LAG) this.pos = Math.max(0, head - 1);
       const lag = head - this.pos;
       // Etwas schneller, wenn Frames dichter kommen als gedacht, damit kein Rückstand wächst.
       const rate = lag > 2 ? 2 : lag > 1.15 ? 1.2 : 1;
@@ -110,7 +137,7 @@ export class ArenaController {
       this.pos += (elapsed / this.tickMs) * this.speed;
       if (this.pos >= head) {
         this.pos = head;
-        if (this.metaValue.status === "finished") this.playing = false;
+        if (this.over) this.playing = false;
         else this.following = true;
       }
     }
@@ -120,7 +147,7 @@ export class ArenaController {
   play(): void {
     if (this.playing) return;
     // Am Ende eines beendeten Matches heißt „Abspielen": noch einmal von vorn.
-    if (this.metaValue.status === "finished" && this.pos >= this.buffer.lastTick) this.pos = 0;
+    if (this.over && this.pos >= this.buffer.lastTick) this.pos = 0;
     this.playing = true;
     this.lastNow = null;
     this.emit(true);
@@ -161,7 +188,7 @@ export class ArenaController {
   /** Zurück zum neuesten Frame. Bei einem beendeten Match: ans Ende. */
   goLive(): void {
     const head = Math.max(0, this.buffer.lastTick);
-    if (this.metaValue.status === "finished") {
+    if (this.over) {
       this.pos = head;
       this.playing = false;
       this.following = false;
@@ -173,6 +200,16 @@ export class ArenaController {
       this.lastNow = null;
     }
     this.emit(true);
+  }
+
+  /**
+   * Meldet jede Bewegung des Abspielkopfs, also bis zu einmal je Bild. Nur für
+   * Dinge, die sich ohne Neuzeichnen durch React bewegen (Marke der Zeitleiste).
+   */
+  onFrame(listener: (pos: number) => void): () => void {
+    this.frameListeners.add(listener);
+    listener(this.pos);
+    return () => this.frameListeners.delete(listener);
   }
 
   subscribe = (listener: Listener): (() => void) => {
@@ -191,7 +228,7 @@ export class ArenaController {
       playing: this.playing,
       following: this.following,
       speed: this.speed,
-      atEnd: this.metaValue.status === "finished" && lastTick >= 0 && this.pos >= lastTick,
+      atEnd: this.over && lastTick >= 0 && this.pos >= lastTick,
     };
   }
 
@@ -207,6 +244,7 @@ export class ArenaController {
       next.speed !== previous.speed ||
       next.atEnd !== previous.atEnd;
     if (changed) this.snapshot = next;
+    for (const listener of this.frameListeners) listener(this.pos);
     if (changed || force) for (const listener of this.listeners) listener();
   }
 }

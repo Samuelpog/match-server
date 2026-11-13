@@ -1,4 +1,4 @@
-import type { ArenaMap, Fleet, Frame, MatchMeta, Owner, PlanetState, Player } from "../model";
+import type { ArenaMap, Fleet, Frame, MatchMeta, Owner, PlanetState, Player, ResultReason } from "../model";
 
 /**
  * Testmaterial für die Ansicht: erzeugt den Verlauf eines kleinen Matches,
@@ -115,7 +115,7 @@ export function simulateFixture(options: FixtureOptions = {}): FixtureMatch {
   const frames: Frame[] = [{ t: 0, planets: planets.map((planet) => ({ ...planet })), launches: [] }];
   let flying: Fleet[] = [];
   let winner: Owner | null = null;
-  let reason: string | null = null;
+  let reason: ResultReason = "unknown";
   let nextId = 1;
 
   for (let t = 1; t <= tickLimit && winner === null; t++) {
@@ -136,8 +136,8 @@ export function simulateFixture(options: FixtureOptions = {}): FixtureMatch {
           from: order.from,
           to: order.to,
           ships: order.ships,
-          launch: t,
-          arrive: t + Math.max(1, Math.ceil(Math.hypot(a.x - b.x, a.y - b.y))),
+          launch: t - 1,
+          arrive: t - 1 + Math.max(1, Math.ceil(Math.hypot(a.x - b.x, a.y - b.y))),
         });
       }
     }
@@ -172,7 +172,7 @@ export function simulateFixture(options: FixtureOptions = {}): FixtureMatch {
     );
     if (!alive[0] || !alive[1]) {
       winner = alive[0] ? 1 : alive[1] ? 2 : 0;
-      reason = "Gegner ausgelöscht";
+      reason = winner === 0 ? "draw" : "elimination";
     }
   }
 
@@ -183,10 +183,13 @@ export function simulateFixture(options: FixtureOptions = {}): FixtureMatch {
         flying.reduce((sum, fleet) => sum + (fleet.owner === player ? fleet.ships : 0), 0),
     );
     winner = total[0] === total[1] ? 0 : total[0] > total[1] ? 1 : 2;
-    reason = "Tick-Limit erreicht, mehr Schiffe";
+    reason = winner === 0 ? "draw" : "ships";
   }
 
   const names = options.names ?? ["Vorschau Blau", "Vorschau Orange"];
+  const tickMs = options.tickMs ?? 300;
+  frames.forEach((frame) => (frame.at = frame.t * tickMs));
+  const player = (name: string) => ({ name, builtIn: true, joined: true, online: null, absent: false });
   return {
     map,
     frames,
@@ -194,12 +197,11 @@ export function simulateFixture(options: FixtureOptions = {}): FixtureMatch {
       id: `vorschau-${seed}`,
       status: "finished",
       tickLimit,
-      tickMs: options.tickMs ?? 400,
-      players: [
-        { name: names[0], online: null, builtIn: true },
-        { name: names[1], online: null, builtIn: true },
-      ],
+      tickMs,
+      players: [player(names[0]), player(names[1])],
       result: { winner, reason },
+      series: null,
+      label: "Vorschau",
     },
   };
 }

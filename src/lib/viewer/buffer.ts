@@ -46,7 +46,7 @@ export class ReplayBuffer {
 
     const previous = this.frames[frame.t - 1];
     this.frames.push(frame);
-    const events = previous ? this.deriveEvents(previous, frame) : [];
+    const events = frame.events ?? (previous ? this.deriveEvents(previous, frame) : []);
     this.events.push(events);
     for (const event of events) if (event.kind === "capture") this.captures.push(event);
     this.stats.push(this.deriveStats(frame));
@@ -96,14 +96,11 @@ export class ReplayBuffer {
       stats.planets[side] += 1;
     });
     // In der Luft: wie im Tick davor, plus Starts, minus Ankünfte dieses Ticks.
+    // Eine Flotte, die im selben Tick startet und ankommt, hebt sich dabei auf.
     const before = this.stats[frame.t - 1];
     if (before) stats.inFlight = [before.inFlight[0], before.inFlight[1]];
-    for (const fleet of frame.launches) {
-      if (fleet.arrive > frame.t) stats.inFlight[fleet.owner - 1] += fleet.ships;
-    }
-    for (const fleet of this.arrivals.get(frame.t) ?? []) {
-      if (fleet.launch < frame.t) stats.inFlight[fleet.owner - 1] -= fleet.ships;
-    }
+    for (const fleet of frame.launches) stats.inFlight[fleet.owner - 1] += fleet.ships;
+    for (const fleet of this.arrivals.get(frame.t) ?? []) stats.inFlight[fleet.owner - 1] -= fleet.ships;
     stats.ships = [stats.onPlanets[0] + stats.inFlight[0], stats.onPlanets[1] + stats.inFlight[1]];
     return stats;
   }
@@ -115,8 +112,8 @@ export class ReplayBuffer {
   }
 
   /**
-   * Flotten, die an Position `pos` unterwegs sind. Eine Flotte ist ab ihrem
-   * Start-Tick sichtbar und verschwindet mit ihrem Ankunfts-Tick.
+   * Flotten, die an Position `pos` unterwegs sind. Eine Flotte ist ab `launch`
+   * sichtbar und verschwindet mit ihrem Ankunfts-Tick.
    */
   activeFleets(pos: number, into: Fleet[] = []): Fleet[] {
     into.length = 0;
@@ -147,15 +144,6 @@ export class ReplayBuffer {
       for (const event of this.events[t]) into.push(event);
     }
     return into;
-  }
-
-  /** Letzter Besitzerwechsel eines Planeten bis einschließlich Tick `t`, sonst `null`. */
-  lastCapture(planet: number, t: number): PlanetEvent | null {
-    for (let i = this.captures.length - 1; i >= 0; i--) {
-      const capture = this.captures[i];
-      if (capture.t <= t && capture.planet === planet) return capture;
-    }
-    return null;
   }
 }
 
