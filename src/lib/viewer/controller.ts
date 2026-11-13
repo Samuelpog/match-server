@@ -133,6 +133,11 @@ export class ArenaController {
       // Etwas schneller, wenn Frames dichter kommen als gedacht, damit kein Rückstand wächst.
       const rate = lag > 2 ? 2 : lag > 1.15 ? 1.2 : 1;
       this.pos = Math.min(head, this.pos + (elapsed / this.liveTickMs) * rate);
+      // Das Match ist zu Ende und der letzte Frame erreicht: es gibt nichts mehr zu verfolgen.
+      if (this.over && this.pos >= head) {
+        this.playing = false;
+        this.following = false;
+      }
     } else {
       this.pos += (elapsed / this.tickMs) * this.speed;
       if (this.pos >= head) {

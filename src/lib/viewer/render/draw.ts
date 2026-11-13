@@ -223,10 +223,10 @@ function drawFleets(ctx: CanvasRenderingContext2D, layout: Layout, theme: ArenaT
     const p = path(layout, fleet);
     const u = progress(fleet, pos);
     // Zwei Flotten auf derselben Strecke in Gegenrichtung fliegen aneinander vorbei statt durcheinander.
-    const side = 3;
+    const side = 3 * layout.unit;
     const x = p.ax + (p.bx - p.ax) * u - p.uy * side;
     const y = p.ay + (p.by - p.ay) * u + p.ux * side;
-    const size = Math.min(15, 4.5 + 1.55 * Math.log2(fleet.ships + 1));
+    const size = Math.min(15, 4.5 + 1.55 * Math.log2(fleet.ships + 1)) * layout.unit;
     const color = theme.owner[fleet.owner];
 
     const tail = Math.min(size * 3.2, Math.hypot(x - p.ax, y - p.ay));
@@ -260,9 +260,10 @@ function drawFleets(ctx: CanvasRenderingContext2D, layout: Layout, theme: ArenaT
     if (fleet.ships >= labelFrom) {
       // Zahl seitlich neben die Bahn, immer auf die obere Seite.
       const flip = ny > 0 ? -1 : 1;
-      const lx = x + nx * flip * (size * 0.62 + 9);
-      const ly = y + ny * flip * (size * 0.62 + 9);
-      ctx.font = `700 11px ${theme.fontMono}`;
+      const text = Math.max(9, Math.round(11 * layout.unit));
+      const lx = x + nx * flip * (size * 0.62 + text * 0.8);
+      const ly = y + ny * flip * (size * 0.62 + text * 0.8);
+      ctx.font = `700 ${text}px ${theme.fontMono}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineJoin = "round";
@@ -319,7 +320,7 @@ function drawEffects(
             ? 1
             : 2;
     const color = theme.owner[attacker];
-    const reach = capture ? 62 : 34;
+    const reach = (capture ? 62 : 34) * layout.unit;
 
     if (layer === "below") {
       // Schockwelle unter den Planeten, damit die Zahlen lesbar bleiben.

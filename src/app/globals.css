@@ -67,19 +67,25 @@ body {
   outline-offset: 2px;
 }
 
-/* Zahlen, die sich laufend ändern, sollen nicht springen. */
-.tabular {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
+/*
+ * Eigene Bausteine liegen in der Ebene `components`, damit einzelne Tailwind-Klassen
+ * (etwa eine andere Textfarbe) sie überstimmen können.
+ */
+@layer components {
+  /* Zahlen, die sich laufend ändern, sollen nicht springen. */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
 
-/* Kleine Überschrift über Anzeigen, wie die Beschriftung an einem Instrument. */
-.label {
-  font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-muted);
+  /* Kleine Überschrift über Anzeigen, wie die Beschriftung an einem Instrument. */
+  .label {
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
 }
 
 /* Der Schieber der Zeitleiste liegt unsichtbar über dem Verlauf und bleibt mit Maus, Finger und Tastatur bedienbar. */

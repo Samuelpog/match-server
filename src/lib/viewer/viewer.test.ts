@@ -157,6 +157,14 @@ describe("ArenaController", () => {
     expect(controller.getState().following).toBe(true);
   });
 
+  it("hält an, wenn ein live verfolgtes Match endet", () => {
+    const controller = new ArenaController(map, meta("running"));
+    controller.append(frames, 0);
+    controller.setMeta(meta("finished"));
+    for (let now = 0; now <= 2000; now += 100) controller.advance(now);
+    expect(controller.getState()).toMatchObject({ tick: 5, playing: false, following: false, atEnd: true });
+  });
+
   it("verlässt beim Spulen die Live-Verfolgung und kehrt mit goLive zurück", () => {
     const controller = new ArenaController(map, meta("running"));
     controller.append(frames, 0);

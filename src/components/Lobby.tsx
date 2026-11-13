@@ -61,17 +61,20 @@ function useListing(enabled: boolean): Listing | null {
     if (!enabled) return;
     const abort = new AbortController();
     (async () => {
+      // Fehlt der Endpunkt für Serien, wird nicht bei jedem Durchlauf wieder danach gefragt.
+      let seriesSupported = true;
       while (!abort.signal.aborted) {
         if (document.visibilityState === "visible") {
           try {
             const matches = await listMatches(abort.signal);
             let series: SeriesInfo[] = [];
-            let seriesSupported = true;
-            try {
-              series = await listSeries(abort.signal);
-            } catch (error) {
-              if (error instanceof ApiError && error.status === 404) seriesSupported = false;
-              else throw error;
+            if (seriesSupported) {
+              try {
+                series = await listSeries(abort.signal);
+              } catch (error) {
+                if (error instanceof ApiError && error.status === 404) seriesSupported = false;
+                else throw error;
+              }
             }
             if (!abort.signal.aborted) setListing({ matches, series, seriesSupported });
           } catch {

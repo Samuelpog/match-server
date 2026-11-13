@@ -5,6 +5,8 @@ export interface Layout {
   width: number;
   height: number;
   scale: number;
+  /** Größenfaktor für Flotten und Effekte: kleiner auf kleinen Flächen, damit sie die Karte nicht zudecken. */
+  unit: number;
   /** Mittelpunkt jedes Planeten in Bildpunkten. */
   x: number[];
   y: number[];
@@ -74,6 +76,7 @@ export function computeLayout(map: ArenaMap, width: number, height: number): Lay
     width,
     height,
     scale,
+    unit: Math.min(1.15, Math.max(0.6, Math.min(width, height) / 620)),
     x: planets.map((planet) => offsetX + planet.x * scale),
     y: planets.map((planet) => offsetY + planet.y * scale),
     r: planets.map((planet) => {

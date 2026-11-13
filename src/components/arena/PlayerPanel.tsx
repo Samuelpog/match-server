@@ -29,9 +29,10 @@ function turn(seat: SeatTick | undefined): { text: string; tone: string } | null
 
 function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col">
+    // Schmal: Beschriftung und Zahl in einer Zeile. Breiter: Zahl unter der Beschriftung.
+    <div className="flex items-baseline justify-between gap-1 sm:flex-col sm:items-stretch sm:justify-start sm:gap-0">
       <dt className="label">{label}</dt>
-      <dd className="tabular text-lg leading-none font-semibold">{value}</dd>
+      <dd className="tabular text-base font-semibold sm:text-lg sm:leading-none">{value}</dd>
     </div>
   );
 }
@@ -68,10 +69,10 @@ export function PlayerPanel({ controller, player }: { controller: ArenaControlle
         {move ? <span className={move.tone}>{move.text}</span> : null}
       </p>
       {stats ? (
-        <dl className={`mt-auto grid grid-cols-2 gap-x-2 gap-y-1 ${mirrored ? "sm:text-right" : ""}`}>
+        <dl className={`mt-auto grid grid-cols-1 gap-x-2 sm:grid-cols-2 sm:gap-y-1 ${mirrored ? "sm:text-right" : ""}`}>
           <Figure label="Planeten" value={number.format(stats.planets[side])} />
           <Figure label="Produktion" value={`+${number.format(stats.production[side])}`} />
-          <Figure label="Stationiert" value={number.format(stats.onPlanets[side])} />
+          <Figure label="Auf Planeten" value={number.format(stats.onPlanets[side])} />
           <Figure label="Im Flug" value={number.format(stats.inFlight[side])} />
         </dl>
       ) : null}

@@ -15,8 +15,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="de" className="h-full antialiased">
       <body className="flex min-h-full flex-col">
         <header className="border-b border-line">
-          <nav aria-label="Hauptnavigation" className="mx-auto flex w-full max-w-[1480px] items-center justify-between gap-2 px-2 sm:px-3">
-            <Link href="/" className="flex min-h-6 items-center gap-1 font-semibold tracking-wide uppercase">
+          <nav aria-label="Hauptnavigation" className="mx-auto flex w-full max-w-[1480px] flex-wrap items-center justify-between gap-x-2 px-2 sm:px-3">
+            <Link href="/" className="flex min-h-6 items-center gap-1 font-semibold tracking-wide whitespace-nowrap uppercase">
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-p1" />
               <span aria-hidden="true" className="-ml-0.5 h-1.5 w-1.5 rounded-full bg-p2" />
               Planet Wars Arena
