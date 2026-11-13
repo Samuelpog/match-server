@@ -1,158 +1,200 @@
-import type { ArenaMap, Fleet, Frame, Owner, PlanetEvent, TickStats } from "./model";
+import type { ArenaMap, BuildEvent, Frame, PlanetEvent, Player, RouteBattle } from "./model";
 
 /**
- * Alle bekannten Frames eines Matches, dazu alles, was sich daraus ableiten
- * lässt: Flotten in der Luft, Ereignisse an Planeten, Summen je Tick. Der
- * Puffer wächst nur nach hinten; Frames kommen in der Reihenfolge der Ticks.
+ * Der Weg einer Flotte durch eine Runde: wo sie beginnt, wie weit sie zieht,
+ * ob sie unterwegs kämpft und ob sie ankommt. Positionen zählen in Runden ab
+ * dem Startplaneten der Flotte.
+ */
+export interface Track {
+  id: number;
+  owner: Player;
+  from: number;
+  to: number;
+  length: number;
+  supply: boolean;
+  /** Schiffe zu Beginn der Runde, bei einer neuen Flotte die gestarteten Schiffe. */
+  ships: number;
+  /** Schiffe am Ende der Runde. 0: vernichtet. */
+  shipsAfter: number;
+  start: number;
+  /** Position nach der Bewegung, wenn kein Kampf sie aufhält. */
+  end: number;
+  /** Startet in dieser Runde und bleibt bis zur nächsten am Startplaneten stehen. */
+  launched: boolean;
+  /** Kämpfe auf der Route in ihrer Reihenfolge. */
+  battles: { at: number; after: number }[];
+  /** Kommt in dieser Runde am Ziel an. */
+  arrives: boolean;
+}
+
+/** Alles, was beim Auflösen einer Runde geschieht, zum Abspielen aufbereitet. */
+export interface Transition {
+  /** Die Runde, deren Auflösung gezeigt wird: der Weg von Frame `round - 1` zu Frame `round`. */
+  round: number;
+  tracks: Track[];
+  /** Schiffe, die in dieser Runde von einem Planeten gestartet sind. Schlüssel ist der Planet. */
+  launched: Map<number, number>;
+  routeBattles: RouteBattle[];
+  planetEvents: PlanetEvent[];
+  built: BuildEvent[];
+}
+
+/**
+ * Alle bekannten Frames eines Matches und je Runde der aufbereitete Ablauf.
+ * Der Puffer wächst nur nach hinten; Frames kommen in der Reihenfolge der Runden.
  */
 export class ReplayBuffer {
   readonly frames: Frame[] = [];
-  readonly stats: TickStats[] = [];
-  /** Alle Flotten, sortiert nach Start-Tick. */
-  readonly fleets: Fleet[] = [];
-  /** Ereignisse je Tick; Index = Tick. */
-  readonly events: PlanetEvent[][] = [];
-  /** Alle Besitzerwechsel in der Reihenfolge der Ticks, für die Zeitleiste. */
+  /** Index = Runde. Für Runde 0 gibt es keinen Ablauf. */
+  readonly transitions: (Transition | null)[] = [];
+  /** Alle Besitzerwechsel in der Reihenfolge der Runden, für die Zeitleiste. */
   readonly captures: PlanetEvent[] = [];
 
-  private readonly arrivals = new Map<number, Fleet[]>();
-  /** Erste Flotte, die für `activeFleets` noch in Frage kommt. Wächst mit dem Abspielkopf. */
-  private scanFrom = 0;
-  private scanTick = 0;
+  private readonly routeLength = new Map<string, number>();
 
-  constructor(readonly map: ArenaMap) {}
+  constructor(readonly map: ArenaMap) {
+    for (const route of map.routes) this.routeLength.set(`${route.a}:${route.b}`, route.length);
+  }
 
-  /** Letzter bekannter Tick, `-1` solange kein Frame da ist. */
-  get lastTick(): number {
+  /** Letzte bekannte Runde, `-1` solange kein Frame da ist. */
+  get lastRound(): number {
     return this.frames.length - 1;
   }
 
+  /** Länge der Route zwischen zwei Planeten in Runden, 1 wenn es keine gibt. */
+  lengthOf(a: number, b: number): number {
+    return this.routeLength.get(a < b ? `${a}:${b}` : `${b}:${a}`) ?? 1;
+  }
+
   /**
-   * Hängt einen Frame an. Schon bekannte Ticks werden übergangen. Fehlt ein
-   * Tick dazwischen, bleibt der Puffer unverändert und die Antwort ist
-   * `false`: der Aufrufer muss ab `lastTick + 1` neu holen.
+   * Hängt einen Frame an. Schon bekannte Runden werden übergangen. Fehlt eine
+   * Runde dazwischen, bleibt der Puffer unverändert und die Antwort ist
+   * `false`: der Aufrufer muss ab `lastRound + 1` neu holen.
    */
   append(frame: Frame): boolean {
-    if (frame.t < this.frames.length) return true;
-    if (frame.t !== this.frames.length) return false;
+    if (frame.round < this.frames.length) return true;
+    if (frame.round !== this.frames.length) return false;
     if (frame.planets.length !== this.map.planets.length) return false;
 
-    for (const fleet of frame.launches) {
-      this.fleets.push(fleet);
-      const list = this.arrivals.get(fleet.arrive);
-      if (list) list.push(fleet);
-      else this.arrivals.set(fleet.arrive, [fleet]);
-    }
-
-    const previous = this.frames[frame.t - 1];
+    const previous = this.frames[frame.round - 1];
     this.frames.push(frame);
-    const events = frame.events ?? (previous ? this.deriveEvents(previous, frame) : []);
-    this.events.push(events);
-    for (const event of events) if (event.kind === "capture") this.captures.push(event);
-    this.stats.push(this.deriveStats(frame));
+    this.transitions.push(previous ? this.plan(previous, frame) : null);
+    for (const event of frame.events) if (event.kind === "capture") this.captures.push(event);
     return true;
   }
 
-  private deriveEvents(previous: Frame, frame: Frame): PlanetEvent[] {
-    const byPlanet = new Map<number, [number, number]>();
-    for (const fleet of this.arrivals.get(frame.t) ?? []) {
-      const arrived = byPlanet.get(fleet.to) ?? [0, 0];
-      arrived[fleet.owner - 1] += fleet.ships;
-      byPlanet.set(fleet.to, arrived);
+  private plan(previous: Frame, frame: Frame): Transition {
+    const tracks = new Map<number, Track>();
+    const launched = new Map<number, number>();
+    const after = new Map(frame.fleets.map((fleet) => [fleet.id, fleet]));
+
+    for (const fleet of previous.fleets) {
+      tracks.set(fleet.id, {
+        id: fleet.id,
+        owner: fleet.owner,
+        from: fleet.from,
+        to: fleet.to,
+        length: fleet.length,
+        supply: fleet.supply,
+        ships: fleet.ships,
+        shipsAfter: after.get(fleet.id)?.ships ?? fleet.ships,
+        start: fleet.progress,
+        end: Math.min(fleet.length, fleet.progress + 1),
+        launched: false,
+        battles: [],
+        arrives: false,
+      });
     }
 
-    const events: PlanetEvent[] = [];
-    frame.planets.forEach((after, planet) => {
-      const before = previous.planets[planet];
-      const arrived = byPlanet.get(planet);
-      const changed = before.owner !== after.owner;
-      // Ein Besitzerwechsel ohne gemeldete Ankunft wird trotzdem gezeigt, statt ihn zu verschlucken.
-      if (!arrived && !changed) return;
-      const counts = arrived ?? [0, 0];
-      const foreign = before.owner === 0 ? counts[0] + counts[1] : counts[2 - before.owner];
-      const kind = changed ? "capture" : foreign > 0 ? "battle" : "reinforce";
-      events.push({ t: frame.t, planet, kind, arrived: counts, before, after });
-    });
-    return events;
-  }
-
-  private deriveStats(frame: Frame): TickStats {
-    const stats: TickStats = {
-      onPlanets: [0, 0],
-      inFlight: [0, 0],
-      ships: [0, 0],
-      production: [0, 0],
-      planets: [0, 0],
-      neutralPlanets: 0,
-    };
-    frame.planets.forEach((planet, index) => {
-      if (planet.owner === 0) {
-        stats.neutralPlanets += 1;
-        return;
+    // Neue Flotten stehen in den Aktionen. Auch die, die noch vor dem Planeten vernichtet wurden.
+    frame.actions.forEach((actions, side) => {
+      for (const action of actions) {
+        if (!action.ok || action.kind !== "move" || action.fleet === null) continue;
+        if (action.from === null || action.to === null || action.ships === null) continue;
+        launched.set(action.from, (launched.get(action.from) ?? 0) + action.ships);
+        const known = tracks.get(action.fleet);
+        if (known) {
+          // Zwei Züge über dieselbe Route in einer Runde bilden eine Flotte.
+          known.ships += action.ships;
+          if (!after.has(known.id)) known.shipsAfter = known.ships;
+          continue;
+        }
+        tracks.set(action.fleet, {
+          id: action.fleet,
+          owner: (side + 1) as Player,
+          from: action.from,
+          to: action.to,
+          length: after.get(action.fleet)?.length ?? this.lengthOf(action.from, action.to),
+          supply: false,
+          ships: action.ships,
+          shipsAfter: after.get(action.fleet)?.ships ?? action.ships,
+          start: 0,
+          end: 0,
+          launched: true,
+          battles: [],
+          arrives: false,
+        });
       }
-      const side = planet.owner - 1;
-      stats.onPlanets[side] += planet.ships;
-      stats.production[side] += this.map.planets[index].growth;
-      stats.planets[side] += 1;
     });
-    // In der Luft: wie im Tick davor, plus Starts, minus Ankünfte dieses Ticks.
-    // Eine Flotte, die im selben Tick startet und ankommt, hebt sich dabei auf.
-    const before = this.stats[frame.t - 1];
-    if (before) stats.inFlight = [before.inFlight[0], before.inFlight[1]];
-    for (const fleet of frame.launches) stats.inFlight[fleet.owner - 1] += fleet.ships;
-    for (const fleet of this.arrivals.get(frame.t) ?? []) stats.inFlight[fleet.owner - 1] -= fleet.ships;
-    stats.ships = [stats.onPlanets[0] + stats.inFlight[0], stats.onPlanets[1] + stats.inFlight[1]];
-    return stats;
+
+    // Nachschub startet ohne Aktion. Er erscheint einfach im neuen Frame.
+    for (const fleet of frame.fleets) {
+      if (tracks.has(fleet.id)) continue;
+      tracks.set(fleet.id, {
+        id: fleet.id,
+        owner: fleet.owner,
+        from: fleet.from,
+        to: fleet.to,
+        length: fleet.length,
+        supply: fleet.supply,
+        ships: fleet.ships,
+        shipsAfter: fleet.ships,
+        start: fleet.progress,
+        end: fleet.progress,
+        launched: true,
+        battles: [],
+        arrives: false,
+      });
+    }
+
+    const routeBattles: RouteBattle[] = [];
+    const planetEvents: PlanetEvent[] = [];
+    const built: BuildEvent[] = [];
+    for (const event of frame.events) {
+      if (event.kind === "route") {
+        routeBattles.push(event);
+        for (const fighter of event.fleets) {
+          const track = tracks.get(fighter.id);
+          if (!track) continue;
+          track.battles.push({ at: track.from === event.a ? event.at : track.length - event.at, after: fighter.after });
+          track.shipsAfter = fighter.after;
+        }
+      } else if (event.kind === "built") {
+        built.push(event);
+      } else {
+        planetEvents.push(event);
+        for (const id of event.fleets) {
+          const track = tracks.get(id);
+          if (!track) continue;
+          track.arrives = true;
+          track.end = track.length;
+        }
+      }
+    }
+
+    return { round: frame.round, tracks: [...tracks.values()], launched, routeBattles, planetEvents, built };
   }
 
   /** Der Frame, der an Position `pos` gilt (abgerundet, auf den Puffer begrenzt). */
   frameAt(pos: number): Frame | null {
     if (this.frames.length === 0) return null;
-    return this.frames[Math.min(this.lastTick, Math.max(0, Math.floor(pos)))];
-  }
-
-  /**
-   * Flotten, die an Position `pos` unterwegs sind. Eine Flotte ist ab `launch`
-   * sichtbar und verschwindet mit ihrem Ankunfts-Tick.
-   */
-  activeFleets(pos: number, into: Fleet[] = []): Fleet[] {
-    into.length = 0;
-    const fleets = this.fleets;
-    // Beim Zurückspulen von vorn suchen, sonst dort weiter, wo zuletzt alles davor gelandet war.
-    if (pos < this.scanTick) this.scanFrom = 0;
-    this.scanTick = pos;
-    let allLandedSoFar = true;
-    for (let i = this.scanFrom; i < fleets.length; i++) {
-      const fleet = fleets[i];
-      if (fleet.launch > pos) break;
-      if (fleet.arrive > pos) {
-        into.push(fleet);
-        allLandedSoFar = false;
-      } else if (allLandedSoFar) {
-        this.scanFrom = i + 1;
-      }
-    }
-    return into;
-  }
-
-  /** Ereignisse, deren Tick in `(pos - span, pos]` liegt, älteste zuerst. */
-  eventsWithin(pos: number, span: number, into: PlanetEvent[] = []): PlanetEvent[] {
-    into.length = 0;
-    const last = Math.min(this.lastTick, Math.floor(pos));
-    const first = Math.max(1, Math.floor(pos - span) + 1);
-    for (let t = first; t <= last; t++) {
-      for (const event of this.events[t]) into.push(event);
-    }
-    return into;
+    return this.frames[Math.min(this.lastRound, Math.max(0, Math.floor(pos)))];
   }
 }
 
-/** Anteil von Spieler 1 an der Summe beider Werte, `0.5` wenn beide null sind. */
-export function share(pair: readonly [number, number]): number {
-  const sum = pair[0] + pair[1];
-  return sum === 0 ? 0.5 : pair[0] / sum;
-}
-
-export function ownerOfSeat(seat: number | null | undefined): Owner {
-  return seat === 0 ? 1 : seat === 1 ? 2 : 0;
+/** Zahl der neutralen Planeten in einem Frame. */
+export function neutralPlanets(frame: Frame): number {
+  let count = 0;
+  for (const planet of frame.planets) if (planet.owner === 0) count += 1;
+  return count;
 }

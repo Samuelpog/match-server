@@ -62,12 +62,12 @@ export function computeLayout(map: ArenaMap, width: number, height: number): Lay
   let smallest = MIN_RADIUS;
   for (let pass = 0; pass < 3; pass++) {
     scale = Math.max(0.01, Math.min((width - 2 * margin) / box.spanX, (height - 2 * margin) / box.spanY));
-    // Zwei Nachbarn dürfen sich nie berühren: höchstens 44 % des kleinsten Abstands.
-    const ceiling = Math.min(minDistance * scale * 0.44, Math.min(width, height) * 0.085, 46);
+    // Zwischen zwei Nachbarn bleibt Platz für die Route und die Flotten darauf.
+    const ceiling = Math.min(minDistance * scale * 0.3, Math.min(width, height) * 0.075, 38);
     largest = Math.max(ceiling, Math.min(MIN_RADIUS, minDistance * scale * 0.48));
-    smallest = Math.min(largest, Math.max(MIN_RADIUS, largest * 0.5));
-    // Platz für den Planeten am Rand samt Leuchten und der Zahl darunter.
-    margin = Math.min(Math.min(width, height) * 0.3, largest * 1.45 + 14);
+    smallest = Math.min(largest, Math.max(MIN_RADIUS, largest * 0.55));
+    // Platz für den Planeten am Rand samt Leuchten und dem Namen darunter.
+    margin = Math.min(Math.min(width, height) * 0.3, largest * 1.45 + 24);
   }
   const offsetX = (width - box.spanX * scale) / 2 - box.minX * scale;
   const offsetY = (height - box.spanY * scale) / 2 - box.minY * scale;
@@ -79,13 +79,8 @@ export function computeLayout(map: ArenaMap, width: number, height: number): Lay
     unit: Math.min(1.15, Math.max(0.6, Math.min(width, height) / 620)),
     x: planets.map((planet) => offsetX + planet.x * scale),
     y: planets.map((planet) => offsetY + planet.y * scale),
-    r: planets.map((planet) => {
-      if (planet.radius && planet.radius > 0) {
-        return Math.min(largest, Math.max(smallest, planet.radius * scale));
-      }
-      // Fläche statt Radius wächst mit der Produktion, sonst wirken große Planeten übertrieben.
-      return smallest + (largest - smallest) * Math.sqrt(planet.growth / maxGrowth);
-    }),
+    // Fläche statt Radius wächst mit der Produktion, sonst wirken große Planeten übertrieben.
+    r: planets.map((planet) => smallest + (largest - smallest) * Math.sqrt(planet.growth / maxGrowth)),
   };
 }
 

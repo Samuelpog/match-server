@@ -1,28 +1,15 @@
 "use client";
 
-import { share } from "@/lib/viewer/buffer";
 import type { ArenaController } from "@/lib/viewer/controller";
+import { share } from "@/lib/viewer/model";
 import { number } from "./format";
 import { usePlayback } from "./use-playback";
 
-function Tug({
-  label,
-  values,
-  unit,
-  thick,
-}: {
-  label: string;
-  values: readonly [number, number];
-  unit: string;
-  thick?: boolean;
-}) {
+function Tug({ label, values, thick }: { label: string; values: readonly [number, number]; thick?: boolean }) {
   const left = share(values) * 100;
   return (
-    <div className="grid grid-cols-[minmax(4rem,auto)_minmax(0,1fr)_minmax(4rem,auto)] items-center gap-x-1">
-      <span className={`tabular text-right font-semibold text-p1 ${thick ? "text-lg" : "text-sm"}`}>
-        {number.format(values[0])}
-        {unit}
-      </span>
+    <div className="grid grid-cols-[minmax(3rem,auto)_minmax(0,1fr)_minmax(3rem,auto)] items-center gap-x-1">
+      <span className={`tabular text-right font-semibold text-p1 ${thick ? "text-lg" : "text-sm"}`}>{number.format(values[0])}</span>
       <div
         role="img"
         aria-label={`${label}: ${values[0]} zu ${values[1]}`}
@@ -35,24 +22,28 @@ function Tug({
         {/* Feste Mittelmarke: links davon führt Spieler 2, rechts davon Spieler 1. */}
         <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-space/70" />
       </div>
-      <span className={`tabular font-semibold text-p2 ${thick ? "text-lg" : "text-sm"}`}>
-        {number.format(values[1])}
-        {unit}
-      </span>
+      <span className={`tabular font-semibold text-p2 ${thick ? "text-lg" : "text-sm"}`}>{number.format(values[1])}</span>
       <span className="label col-span-3 text-center">{label}</span>
     </div>
   );
 }
 
-/** Kräfteverhältnis beider Seiten: alle Schiffe (auf Planeten und in der Luft) und die Produktion je Tick. */
+/**
+ * Kräfteverhältnis beider Seiten. Oben die Punkte: dieselbe Größe, die am
+ * Ende entscheidet. Darunter alle Schiffe (auf Planeten und unterwegs) und
+ * die Produktion je Runde.
+ */
 export function PowerBar({ controller }: { controller: ArenaController }) {
-  const { tick } = usePlayback(controller);
-  const stats = controller.buffer.stats[tick];
-  if (!stats) return null;
+  const { round } = usePlayback(controller);
+  const seats = controller.buffer.frames[round]?.seats;
+  if (!seats) return null;
   return (
     <section aria-label="Kräfteverhältnis" className="flex flex-col gap-1">
-      <Tug label="Schiffe gesamt" values={stats.ships} unit="" thick />
-      <Tug label="Produktion je Tick" values={stats.production} unit="" />
+      <Tug label="Punkte" values={[seats[0].score, seats[1].score]} thick />
+      <div className="grid grid-cols-2 gap-x-2">
+        <Tug label="Schiffe gesamt" values={[seats[0].ships, seats[1].ships]} />
+        <Tug label="Produktion je Runde" values={[seats[0].production, seats[1].production]} />
+      </div>
     </section>
   );
 }

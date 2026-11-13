@@ -14,12 +14,12 @@ import { useMeta, usePlayback } from "./use-playback";
  */
 export function ResultBanner({ controller, actions }: { controller: ArenaController; actions?: React.ReactNode }) {
   const meta = useMeta(controller);
-  const { atEnd, lastTick } = usePlayback(controller);
+  const { atEnd, lastRound } = usePlayback(controller);
   const [closedFor, setClosedFor] = useState<string | null>(null);
   const result = meta.result;
   if (!atEnd || !result || closedFor === meta.id) return null;
 
-  const stats = controller.buffer.stats[lastTick];
+  const seats = controller.buffer.frames[lastRound]?.seats;
   const winner = result.winner;
   const title =
     result.reason === "aborted" ? "Abgebrochen" : winner === 0 ? "Unentschieden" : `${meta.players[winner - 1].name} gewinnt`;
@@ -35,7 +35,7 @@ export function ResultBanner({ controller, actions }: { controller: ArenaControl
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-col">
-            <span className="label">Auswertung nach Tick {lastTick}</span>
+            <span className="label">Auswertung nach Runde {lastRound}</span>
             <h2 className={`flex items-center gap-1 text-lg font-semibold ${OWNER_TEXT[winner]}`}>
               {winner !== 0 ? <OwnerMark owner={winner} size={20} /> : null}
               {title}
@@ -51,7 +51,7 @@ export function ResultBanner({ controller, actions }: { controller: ArenaControl
           </button>
         </div>
 
-        {stats ? (
+        {seats ? (
           <table className="tabular w-full text-sm">
             <thead>
               <tr className="label text-left">
@@ -69,9 +69,10 @@ export function ResultBanner({ controller, actions }: { controller: ArenaControl
             <tbody>
               {(
                 [
-                  ["Schiffe gesamt", stats.ships],
-                  ["Planeten", stats.planets],
-                  ["Produktion je Tick", stats.production],
+                  ["Punkte", [seats[0].score, seats[1].score]],
+                  ["Planeten", [seats[0].planets, seats[1].planets]],
+                  ["Schiffe gesamt", [seats[0].ships, seats[1].ships]],
+                  ["Produktion je Runde", [seats[0].production, seats[1].production]],
                 ] as const
               ).map(([label, pair]) => (
                 <tr key={label} className="border-t border-line">
