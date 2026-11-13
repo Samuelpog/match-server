@@ -146,21 +146,20 @@ async function playSeries(seriesId) {
   const path = `/api/series/${seriesId}`;
   const { slot, token } = await call("POST", `${path}/join`, { body: { name: NAME } });
   console.log(`Serie ${seriesId}: beigetreten als Teilnehmer ${slot + 1}`);
-  const played = new Set();
+  let last = "";
   for (;;) {
-    const me = await call("GET", `${path}/me?wait=${WAIT}`, { token });
+    // Wartet, bis ein neues Match läuft oder die Serie vorbei ist.
+    const me = await call("GET", `${path}/me?wait=${WAIT}&after=${last}`, { token });
     if (!me) continue;
     if (me.series.status === "finished" || me.series.status === "aborted") {
-      console.log(`Serie beendet: ${me.series.wins[0]}:${me.series.wins[1]}`);
+      const [mine, theirs] = slot === 0 ? me.series.wins : [me.series.wins[1], me.series.wins[0]];
+      console.log(`Serie beendet: ${mine}:${theirs} aus meiner Sicht (${me.series.status})`);
       return;
     }
-    if (!me.current || played.has(me.current.matchId)) {
-      await sleep(500);
-      continue;
-    }
+    if (!me.current) continue;
     console.log(`Spiel in Match ${me.current.matchId}, Sitz ${me.current.seat}`);
     await playMatch(me.current.matchId, token);
-    played.add(me.current.matchId);
+    last = me.current.matchId;
   }
 }
 
