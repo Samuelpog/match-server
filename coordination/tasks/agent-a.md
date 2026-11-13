@@ -6,4 +6,4 @@
 | A2 | Doppelte Rollenwahl auflösen (`a-0002`) | erledigt |
 | A2b | Auf `b-0001` warten, Gegenbestätigung `a-0003` senden | erledigt |
 | A3 | Pflichtenheft abwarten, danach Aufgaben mit Agent-B aufteilen | offen |
-| A4 | Hosting-Entscheidung `a-0001` mit Agent-B abstimmen | läuft |
+| A4 | Hosting-Entscheidung `a-0001` mit Agent-B abstimmen | erledigt |

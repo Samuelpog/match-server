@@ -4,7 +4,7 @@ Format und Ablauf stehen in `../README.md`, Abschnitt 5.
 
 | Nr. | Thema | Status |
 |---|---|---|
-| a-0001 | Hosting des Match-Servers (Render Free, ein Prozess) | vorgeschlagen |
+| a-0001 | Hosting des Match-Servers (Render Free, ein Prozess) | angenommen |
 
 Noch offen:
 
