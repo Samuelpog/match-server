@@ -2,7 +2,7 @@
 
 Verbindliche Beschreibung für Bots und Zuschauer-UI. Die Typen dazu stehen in `src/lib/planetwars/types.ts` (Spiel) und `src/lib/arena/api-types.ts` (HTTP). Weicht dieser Text von den Typen ab, gelten die Typen.
 
-Stand: Matches sind gebaut, Serien folgen. Abschnitte mit „geplant" gibt es noch nicht.
+Stand: 2026-11-13. Alles hier Beschriebene ist gebaut.
 
 ## 1. Spielregeln
 
@@ -116,20 +116,35 @@ Reicht ein Bot für einen alten Tick ein, kommt `409` mit Code `stale_tick` und 
 
 Die Vorlage `examples/bot.mjs` setzt genau diesen Ablauf um.
 
-### Serien (geplant)
+### Serien
 
-Eine Serie spielt Best-of-1, 3 oder 5 zwischen denselben zwei Teilnehmern. Ein Bot tritt der Serie einmal bei, sein Token gilt für alle Matches darin. Die Sitze wechseln von Spiel zu Spiel, jedes Spiel hat eine eigene Karte (`seed + Spielnummer - 1`).
+Eine Serie spielt Best-of-1, 3 oder 5 zwischen denselben zwei Teilnehmern. Ein Bot tritt der Serie einmal bei, sein Token gilt für alle Matches darin.
+
+- Die Serie startet, sobald beide Plätze besetzt sind. Das nächste Spiel beginnt 4 Sekunden nach dem Ende des vorigen.
+- Die Sitze wechseln von Spiel zu Spiel: Teilnehmer 0 sitzt in Spiel 1 auf Sitz 0, in Spiel 2 auf Sitz 1.
+- Jedes Spiel hat eine eigene Karte: `seed + Spielnummer - 1`.
+- Die Serie endet, sobald ein Teilnehmer mehr als die Hälfte der Spiele gewonnen hat, spätestens nach `bestOf` Spielen. Ein Unentschieden zählt als gespieltes Spiel ohne Sieger. Bei gleich vielen Siegen am Ende hat die Serie keinen Gewinner.
+- Wird ein Spiel der Serie abgebrochen, endet die Serie mit Status `aborted`.
 
 | Aufruf | Zweck |
 |---|---|
 | `POST /api/series` | Serie anlegen. Body `CreateSeriesRequest`, Antwort `201` mit `SeriesResponse`. |
-| `GET /api/series` | Liste. `SeriesListResponse`. |
-| `GET /api/series/{id}?since=<version>&wait=25` | Stand, Spiele, laufendes Match. `SeriesResponse`. |
-| `POST /api/series/{id}/join` | Platz in der Serie besetzen. Antwort `SeriesJoinResponse`. |
-| `GET /api/series/{id}/me?since=<version>&wait=25` | Für Bots: in welchem Match und auf welchem Sitz geht es weiter. `SeriesPlayerState`. |
-| `POST /api/series/{id}/abort` | Serie abbrechen. |
+| `GET /api/series?limit=50` | Liste, neueste zuerst. `SeriesListResponse`. |
+| `GET /api/series/{id}?since=<version>&wait=25` | Stand, Spiele, laufendes Match, Auftragstext. `SeriesResponse`. Mit `since` und `wait` hält der Aufruf, bis sich `series.version` ändert. |
+| `POST /api/series/{id}/join` | Platz in der Serie besetzen. Body `{ "name": "…" }`, Antwort `SeriesJoinResponse` mit `token`. |
+| `GET /api/series/{id}/me?wait=25&after=<matchId>` | Für Bots: in welchem Match und auf welchem Sitz es weitergeht. `SeriesPlayerState`. |
+| `POST /api/series/{id}/abort` | Serie abbrechen, samt laufendem Match. |
 
-Ablauf eines Bots in einer Serie: beitreten, mit `me` auf `current` warten, das Match wie oben spielen, wieder `me` fragen, bis `series.status` `finished` oder `aborted` ist.
+`me` mit `wait` antwortet, sobald ein Match der Serie läuft oder die Serie vorbei ist. `after=<matchId>` blendet ein schon gespieltes Match aus, damit der Bot nach einem Spiel auf das nächste wartet.
+
+Ablauf eines Bots in einer Serie:
+
+1. `join`, Token merken.
+2. `me?wait=25&after=<letztes Match>` fragen, bei `204` wiederholen. Ist `series.status` `finished` oder `aborted`: fertig.
+3. Das Match `current.matchId` wie oben spielen, mit demselben Token. `current.seat` ist der Sitz in diesem Spiel.
+4. Weiter bei 2.
+
+Für die Zuschauer-Seite: `series.current` ist die Kennung des laufenden Matches, `series.games` listet alle Spiele mit Ergebnis. `games[].winner` ist der Teilnehmer (`slot`), nicht der Sitz.
 
 ## 5. Frames lesen
 

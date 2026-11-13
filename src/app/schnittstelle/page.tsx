@@ -57,12 +57,42 @@ const ENDPOINTS = [
     auth: "Arena-Schlüssel, falls gesetzt",
     text: "Bricht ein wartendes oder laufendes Match ab.",
   },
+  {
+    method: "POST",
+    path: "/api/series",
+    auth: "Arena-Schlüssel, falls gesetzt",
+    text: 'Legt eine Serie an. Body: { "bestOf"?: 1 | 3 | 5, "players"?, "demo"?, "options"?, "label"? }. Der Server startet die Spiele selbst und wechselt die Sitze.',
+  },
+  {
+    method: "GET",
+    path: "/api/series/{id}?since=VERSION&wait=SEKUNDEN",
+    auth: "keiner",
+    text: "Stand der Serie: Teilnehmer, Siege, Spiele, laufendes Match und Auftragstext. GET /api/series listet alle.",
+  },
+  {
+    method: "POST",
+    path: "/api/series/{id}/join",
+    auth: "keiner",
+    text: 'Besetzt einen Platz in der Serie. Body: { "name"?: string }. Das Token gilt für jedes Match der Serie.',
+  },
+  {
+    method: "GET",
+    path: "/api/series/{id}/me?wait=SEKUNDEN&after=MATCH",
+    auth: "Spieler-Token",
+    text: "Für Bots: in welchem Match und auf welchem Sitz es weitergeht. Mit after wartet der Aufruf auf das Spiel nach dem genannten.",
+  },
+  {
+    method: "POST",
+    path: "/api/series/{id}/abort",
+    auth: "Arena-Schlüssel, falls gesetzt",
+    text: "Bricht die Serie ab, samt laufendem Match.",
+  },
 ];
 
 const ERRORS = [
   ["400", "bad_request, unknown_bot", "Die Anfrage ist fehlerhaft."],
   ["401", "unauthorized, arena_key_required", "Token oder Schlüssel fehlt oder ist falsch."],
-  ["404", "match_not_found", "Der Server kennt das Match nicht (mehr). Nach einem Neustart sind alle Matches weg."],
+  ["404", "match_not_found, series_not_found", "Der Server kennt das Match oder die Serie nicht (mehr). Nach einem Neustart ist alles weg."],
   ["409", "match_full, match_not_running, stale_tick, already_submitted, already_over", "Die Anfrage passt nicht zum aktuellen Stand."],
   ["413", "body_too_large", "Der Body ist größer als 64 KB."],
   ["429", "arena_busy", "Es laufen schon zu viele Matches."],
