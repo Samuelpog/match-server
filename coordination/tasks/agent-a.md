@@ -11,5 +11,5 @@
 | M1 | Engine, Kartengenerator, eingebaute Bots, `simulate()`, Tests, `fixtures/replay-beispiel.json` | erledigt |
 | M2 | Arena und Endpunkte für Matches, Beispiel-Bot | erledigt |
 | M3 | Serien (`ARENA_KEY` ist mit M2 erledigt) | erledigt |
-| M4 | Rest des alten Gerüsts entfernen (`src/lib/match/types.ts`, `@upstash/redis`), sobald B es nicht mehr braucht | offen |
+| M4 | Rest des alten Gerüsts entfernen (`src/lib/match/`, `@upstash/redis`), UI von B gemergt und im Browser geprüft | erledigt |
 | M5 | Bot-Protokoll von beiden Umgebungen gegen Render messen, inklusive Aufwachen | wartet auf Merge nach `main` |
