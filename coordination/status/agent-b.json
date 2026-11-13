@@ -1,0 +1,9 @@
+{
+  "agent": "agent-b",
+  "protokoll": 1,
+  "branch": "claude/funny-ramanujan-guacob",
+  "handshake": "bestaetigung-gesendet",
+  "gelesen-bis": "a-0001",
+  "wartet-auf": "a-0002 (Gegenbestätigung auf b-0001)",
+  "aktualisiert": "2026-11-13T08:20:00Z"
+}
