@@ -12,6 +12,8 @@ export interface Layout {
   y: number[];
   /** Radius jedes Planeten in Bildpunkten. */
   r: number[];
+  /** Wo der Name steht: 1 unter dem Planeten, -1 darüber. Dort, wo keine Route abgeht. */
+  nameSide: number[];
 }
 
 /** Kleinster Radius, in dem die Schiffszahl noch lesbar ist. */
@@ -72,10 +74,26 @@ export function computeLayout(map: ArenaMap, width: number, height: number): Lay
   const offsetX = (width - box.spanX * scale) / 2 - box.minX * scale;
   const offsetY = (height - box.spanY * scale) / 2 - box.minY * scale;
 
+  // Der Name steht auf der Seite, auf der die nächste Route am weitesten weg ist.
+  const nameSide = planets.map((planet, index) => {
+    let below = Math.PI;
+    let above = Math.PI;
+    for (const route of map.routes) {
+      if (route.a !== index && route.b !== index) continue;
+      const other = planets[route.a === index ? route.b : route.a];
+      const angle = Math.atan2(other.y - planet.y, other.x - planet.x);
+      below = Math.min(below, Math.abs(angle - Math.PI / 2));
+      above = Math.min(above, Math.abs(angle + Math.PI / 2));
+    }
+    // Im Zweifel unten: so liest man es gewohnt, und oben sitzt beim Heimatplaneten der Wimpel.
+    return above > below + 0.35 ? -1 : 1;
+  });
+
   return {
     width,
     height,
     scale,
+    nameSide,
     unit: Math.min(1.15, Math.max(0.6, Math.min(width, height) / 620)),
     x: planets.map((planet) => offsetX + planet.x * scale),
     y: planets.map((planet) => offsetY + planet.y * scale),

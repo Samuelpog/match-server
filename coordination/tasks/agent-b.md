@@ -24,14 +24,14 @@ Das alte Spiel wird ersetzt. Gebaut wird je Stufe gegen die Typen und die Beispi
 
 | Nr. | Aufgabe | Status |
 |---|---|---|
-| B20 | Anzeige-Modell und Adapter für `version: 2` (Runden, Routen, Flottenliste je Frame, Aktionen, Ereignisse mit Schritt, `params`) | in Arbeit |
-| B21 | Puffer und Abspielkopf: Runde in Schritten (Befehle, Bewegung, Kampf, Ergebnis), festes Schautempo im Replay, Aufholen bei schnellen Frames | offen |
-| B22 | Schlachtfeld: Routen, Namen, Heimat- und Knotenplaneten, Flotten entlang der Route, Kampf auf der Route, Ausfall vor dem Planeten | offen |
-| B23 | Rundenprotokoll statt Ereignisliste, mit abgelehnten Aktionen, Klick springt zur Runde | offen |
-| B24 | Stand: Kräfte-Anzeige nach Punkten, Aktionszähler, Produktion, Zeitleiste in Runden | offen |
-| B25 | Lobby: Voreinstellungen „Turnier" und „Test", Optionen `planets`, `rounds`, `roundMs`, `timeoutMs` | offen |
-| B26 | `/vorschau` mit `src/lib/game` im Browser | offen |
-| B27 | Alte Replays: klare Meldung, Ablage im Browser räumen | offen |
+| B20 | Anzeige-Modell und Adapter für `version: 2` (Runden, Routen, Flottenliste je Frame, Aktionen, Ereignisse mit Schritt, `params`) | erledigt |
+| B21 | Puffer und Abspielkopf: Runde in Schritten (Befehle, Bewegung, Kampf, Ergebnis), festes Schautempo im Replay, Aufholen bei schnellen Frames | erledigt |
+| B22 | Schlachtfeld: Routen, Namen, Heimat- und Knotenplaneten, Flotten entlang der Route, Kampf auf der Route, Ausfall vor dem Planeten | erledigt |
+| B23 | Rundenprotokoll statt Ereignisliste, mit abgelehnten Aktionen, Klick springt zur Runde | erledigt |
+| B24 | Stand: Kräfte-Anzeige nach Punkten, Aktionszähler, Produktion, Zeitleiste in Runden | erledigt |
+| B25 | Lobby: Voreinstellungen „Turnier" und „Test", Optionen `planets`, `rounds`, `roundMs`, `timeoutMs` | erledigt |
+| B26 | `/vorschau` mit `src/lib/game` im Browser | erledigt |
+| B27 | Alte Replays: klare Meldung, Ablage im Browser räumen | erledigt |
 | B28 | Umstellung auf die neue `api-types.ts`, Test gegen lokalen Server und im Browser | offen |
 
 ### Später

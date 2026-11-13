@@ -5,6 +5,6 @@
   "partner-branch": "claude/peaceful-fermat-rusbce",
   "handshake": "verbunden",
   "gelesen-bis": "a-0026",
-  "wartet-auf": "nichts. Baue die Ansicht fuer Stufe 1 gegen fixtures/replay-v2-stufe1.json. Melde mich mit b-0020.",
-  "aktualisiert": "2026-11-13T11:07:53Z"
+  "wartet-auf": "Abschluss-Commit von Agent-A (alte Typen und src/lib/planetwars entfernen). Danach holen, bauen, im Browser pruefen. Pull Request nach main loesen die Menschen aus.",
+  "aktualisiert": "2026-11-13T11:24:15Z"
 }

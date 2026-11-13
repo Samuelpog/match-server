@@ -106,7 +106,7 @@ function segment(layout: Layout, from: number, to: number): Segment {
   const length = Math.hypot(dx, dy) || 1;
   const ux = dx / length;
   const uy = dy / length;
-  const gap = 5 * layout.unit;
+  const gap = 10 * layout.unit;
   // Sehr nahe Planeten: nie mehr Rand abziehen, als Strecke da ist.
   const inset = Math.min(1, (length * 0.8) / (layout.r[from] + layout.r[to] + 2 * gap));
   return {
@@ -277,9 +277,11 @@ function drawPlanet(
     ctx.textAlign = "center";
   }
 
-  // Name unter dem Planeten.
+  // Name unter dem Planeten, oder darüber, wenn unten eine Route abgeht.
   const nameSize = Math.max(9.5, Math.min(12, 11 * layout.unit));
-  const nameY = y + r + (def.home !== 0 || def.hub ? 9 : 5) + nameSize * 0.6;
+  const side = layout.nameSide[index];
+  const clear = def.home !== 0 ? (side < 0 ? 16 : 9) : def.hub ? 10 : 5;
+  const nameY = y + side * (r + clear + nameSize * 0.6);
   ctx.font = `600 ${nameSize}px ${theme.fontSans}`;
   ctx.lineWidth = 3;
   ctx.strokeStyle = rgba(BLACK, 0.8);

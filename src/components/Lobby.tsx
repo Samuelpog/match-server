@@ -346,7 +346,7 @@ function CreatePanel({ health, seriesSupported }: { health: HealthResponse; seri
             ))}
           </div>
           <p className="text-xs text-muted">
-            {TEMPOS.find((entry) => entry.id === tempo)?.hint} Ein Match über {rounds} Runden dauert höchstens etwa{" "}
+            {TEMPOS.find((entry) => entry.id === tempo)?.hint} Ein Match über {rounds} Runden dauert bis zu{" "}
             {formatDuration(rounds * Math.max(roundMs, 1))}.
           </p>
         </fieldset>

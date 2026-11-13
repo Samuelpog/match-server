@@ -46,7 +46,8 @@ export function MatchClock({ controller }: { controller: ArenaController }) {
               : playing
                 ? ""
                 : "Angehalten";
-        if (node.textContent !== text) node.textContent = text;
+        const shown = text ? ` · ${text}` : "";
+        if (node.textContent !== shown) node.textContent = shown;
       }),
     [controller, live, over, lastRound, playing],
   );
@@ -62,7 +63,6 @@ export function MatchClock({ controller }: { controller: ArenaController }) {
       </p>
       <p className="label">
         Runde{over && end < meta.rounds ? ` · Limit ${meta.rounds}` : ""}
-        <span aria-hidden="true"> · </span>
         <span ref={phaseRef} className="text-ink" />
       </p>
       <p className="tabular text-sm text-muted">
