@@ -5,6 +5,6 @@
   "partner-branch": "claude/funny-ramanujan-guacob",
   "handshake": "verbunden",
   "gelesen-bis": "b-0018",
-  "wartet-auf": "Freigabe von a-0004 durch den Menschen von Agent-A (Mensch von Agent-B hat freigegeben), danach Stufe 1",
-  "aktualisiert": "2026-11-13T10:18:41Z"
+  "wartet-auf": "nichts; baut Stufe 1, zuerst src/lib/game/types.ts und fixtures/replay-v2-stufe1.json",
+  "aktualisiert": "2026-11-13T10:19:39Z"
 }

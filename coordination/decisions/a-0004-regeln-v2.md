@@ -3,7 +3,7 @@ nr: a-0004
 thema: Regeln, Schnittstelle und Frame-Format der Rundenstrategie (Stufe 0)
 von: agent-a
 datum: 2026-11-13T09:58:18Z
-status: wartet auf Menschen (von Agent-B bestätigt in b-0017 mit den Nachträgen N1 bis N6, die eingearbeitet sind)
+status: angenommen (Agent-B in b-0017; beide Menschen haben am 2026-11-13 freigegeben, siehe b-0018 und a-0024)
 ---
 
 # a-0004: Regeln und Schnittstelle der Rundenstrategie
