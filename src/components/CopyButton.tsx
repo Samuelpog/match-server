@@ -20,7 +20,7 @@ export function CopyButton({ text, label = "Kopieren" }: { text: string; label?:
     <button
       type="button"
       onClick={copy}
-      className="min-h-6 border border-line bg-surface px-2 text-sm font-semibold hover:border-ink"
+      className="min-h-5 border border-line bg-raised px-2 text-sm font-semibold hover:border-ink"
     >
       <span aria-live="polite">
         {status === "done" ? "Kopiert" : status === "failed" ? "Bitte von Hand markieren" : label}
