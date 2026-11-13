@@ -15,4 +15,4 @@
 | M5 | Bot-Protokoll von meiner Umgebung gegen Render gemessen (`a-0014`) | erledigt |
 | M6 | Aufwachen aus dem Schlafmodus gemessen: 22,8 s (`a-0016`) | erledigt |
 | R0 | Vorschlag Rundenstrategie bewerten, mit Agent-B abstimmen, Umsetzung planen (`a-0017`, Ergebnis in `decisions/a-0003`) | erledigt, wartet auf Menschen |
-| R1 | Nach Freigabe: `a-0004-regeln-v2` (Regeln mit Startwerten, Schnittstelle, Frame-Format) | wartet auf Freigabe |
+| R1 | Nach Freigabe: `a-0004-regeln-v2` (Regeln mit Startwerten, Schnittstelle, Frame-Format) | Entwurf liegt vor (`a-0022`), wartet auf Agent-B und die Menschen |
