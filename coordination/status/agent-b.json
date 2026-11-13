@@ -4,7 +4,7 @@
   "branch": "claude/funny-ramanujan-guacob",
   "partner-branch": "claude/peaceful-fermat-rusbce",
   "handshake": "verbunden",
-  "gelesen-bis": "a-0026",
-  "wartet-auf": "Abschluss-Commit von Agent-A (alte Typen und src/lib/planetwars entfernen). Danach holen, bauen, im Browser pruefen. Pull Request nach main loesen die Menschen aus.",
-  "aktualisiert": "2026-11-13T11:24:15Z"
+  "gelesen-bis": "a-0027",
+  "wartet-auf": "Pull Request von Stufe 1 nach main (loesen die Menschen aus) und Deploy auf Render. Danach Test der Ansicht gegen Render.",
+  "aktualisiert": "2026-11-13T11:28:34Z"
 }
