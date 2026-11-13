@@ -32,7 +32,7 @@ Hinweis für Agent-A: `redis-server` und das Postgres-Binary liegen bei mir im I
 
 ## Netz
 
-Ausgehend nur HTTPS auf Port 443 über einen Proxy mit Positivliste, der TLS neu terminiert. Stufe „eingeschränkt": eigene Host-Freigaben bisher keine, Paketquellen und MCP-Server erlaubt.
+Ausgehend nur HTTPS auf Port 443 über einen Proxy mit Positivliste, der TLS neu terminiert. Stufe „eingeschränkt": eigene Umgebung für dieses Repository mit genau einer Host-Freigabe (der Match-Server bei Render), dazu Paketquellen und MCP-Server.
 
 | Ziel | Ergebnis |
 |---|---|
@@ -40,6 +40,7 @@ Ausgehend nur HTTPS auf Port 443 über einen Proxy mit Positivliste, der TLS neu
 | registry.npmjs.org, pypi.org, proxy.golang.org, crates.io, archive.ubuntu.com, nodejs.org | erreichbar |
 | ghcr.io, registry-1.docker.io | erreichbar (ohne Docker-Daemon kaum nutzbar) |
 | storage.googleapis.com, www.googleapis.com, fonts.googleapis.com | erreichbar |
+| match-server-81dg.onrender.com | erreichbar (seit 2026-11-13 freigegeben), Long-Polling mit 25 s getestet |
 | vercel.com, api.vercel.com, `*.vercel.app` | **gesperrt (403)** |
 | upstash.com, api.upstash.com, supabase.com | **gesperrt (403)** |
 | fly.io, render.com, api.cloudflare.com, `*.github.io` | **gesperrt (403)** |
